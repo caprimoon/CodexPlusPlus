@@ -16,7 +16,7 @@ const styles = await readText("./styles.css");
 function importMenuSource() {
   const start = app.indexOf('className="third-party-import-menu"');
   assert.ok(start > 0, "找不到 third-party-import-menu");
-  const end = app.indexOf("{connection}", start);
+  const end = app.indexOf("<NativeAuthControl", start);
   assert.ok(end > start, "找不到菜单之后的页面正文");
   return app.slice(start, end);
 }

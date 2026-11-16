@@ -25,15 +25,16 @@ test("预览窗口不抢焦点：创建时不聚焦，显示走不激活的置�
   assert.doesNotMatch(rust.slice(rust.indexOf("fn order_front"), rust.indexOf("#[cfg(not(target_os = \"macos\"))]", rust.indexOf("fn order_front"))), /window\.show\(\)/);
 });
 
-test("预览组件加载后主动取目标，并能关闭与切到应用", () => {
+test("预览组件加载后主动取目标，并能关闭与切到应用；精简版不在启动时拉起 cu_pip 后台线程", () => {
   const view = read("./CuPipWindow.tsx");
   for (const command of ["cu_pip_target", "cu_pip_dismiss", "cu_pip_activate"]) {
     assert.ok(view.includes(`"${command}"`), `缺少 ${command}`);
   }
   const lib = read("../src-tauri/src/lib.rs");
-  for (const command of ["cu_pip::cu_pip_target", "cu_pip::cu_pip_dismiss", "cu_pip::cu_pip_activate", "cu_pip::start("]) {
+  for (const command of ["cu_pip::cu_pip_target", "cu_pip::cu_pip_dismiss", "cu_pip::cu_pip_activate"]) {
     assert.ok(lib.includes(command), `lib.rs 缺少 ${command}`);
   }
+  assert.ok(!lib.includes("cu_pip::start("), "lib.rs 不应启动 cu_pip 后台线程");
 });
 
 test("预览窗口标明 Codex++ Computer Use", () => {

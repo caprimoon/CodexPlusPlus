@@ -62,14 +62,15 @@ export function AgentCachePanel() {
     return () => { mounted.current = false; };
   }, []);
 
-  const chosen = selectableCacheGroups(report?.groups ?? []).filter((group) => selected.includes(group.id));
+  const visibleGroups = (report?.groups ?? []).filter((group) => group.app !== "Claude");
+  const chosen = selectableCacheGroups(visibleGroups).filter((group) => selected.includes(group.id));
   const chosenSummary = cacheCleanupSummary(chosen);
   const chosenBytes = chosenSummary.bytes;
   const chosenFiles = chosenSummary.files;
-  const totalBytes = report?.groups.reduce((sum, group) => sum + group.totalBytes, 0) ?? 0;
-  const eligibleBytes = report?.groups.reduce((sum, group) => sum + group.eligibleBytes, 0) ?? 0;
-  const apps = cacheApps(report?.groups ?? []);
-  const selectable = cacheSelection(report?.groups ?? [], "all");
+  const totalBytes = visibleGroups.reduce((sum, group) => sum + group.totalBytes, 0);
+  const eligibleBytes = visibleGroups.reduce((sum, group) => sum + group.eligibleBytes, 0);
+  const apps = cacheApps(visibleGroups).filter((app) => app.name !== "Claude");
+  const selectable = cacheSelection(visibleGroups, "all");
 
   /** `keepResult`：清理后自动重扫时保留上一次的清理结果或失败原因。 */
   async function scan(keepResult = false) {
@@ -85,7 +86,8 @@ export function AgentCachePanel() {
       // 扫描完直接勾上推荐项（不含日志），大多数人只需要点一次「清理」。
       if (mounted.current) {
         setReport(response.report);
-        setSelected(cacheSelection(response.report.groups, "recommended"));
+        const codexGroups = response.report.groups.filter((group) => group.app !== "Claude");
+        setSelected(cacheSelection(codexGroups, "recommended"));
       }
     } catch (cause) {
       if (mounted.current) setError(String(cause));
@@ -142,7 +144,7 @@ export function AgentCachePanel() {
           {busy === "scan" ? t("正在扫描缓存…") : report ? t("重新扫描") : t("扫描缓存")}
         </button>
         <Menu>
-          <MenuItem disabled={busy !== null || selectable.length === 0} onClick={() => setSelected(cacheSelection(report?.groups ?? [], "recommended"))}>{t("推荐选择")}</MenuItem>
+          <MenuItem disabled={busy !== null || selectable.length === 0} onClick={() => setSelected(cacheSelection(visibleGroups, "recommended"))}>{t("推荐选择")}</MenuItem>
           <MenuItem disabled={busy !== null || selectable.length === 0} onClick={() => setSelected(selectable)}>{t("全部选择（含日志）")}</MenuItem>
           <MenuItem disabled={busy !== null || selected.length === 0} onClick={() => setSelected([])}>{t("取消选择")}</MenuItem>
         </Menu>

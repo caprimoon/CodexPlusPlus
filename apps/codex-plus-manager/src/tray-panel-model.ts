@@ -1,10 +1,10 @@
 /** 托盘快捷面板的纯数据逻辑：页签、Codex 状态、供应商列表、用量速览。不碰 i18n，文案由组件翻译。 */
 import type { GatewayPayload, GatewayPoolEntry, QuotaWindow, UsageSummary } from "./gateway-model.ts";
 
-export type TrayTabId = "home" | "usage" | "gateway" | "flow";
+export type TrayTabId = "home";
 
-/** 页签顺序：先放所有用户都用得上的，再是网关，最后是实时请求流。 */
-export const TRAY_TABS: readonly TrayTabId[] = ["home", "usage", "gateway", "flow"];
+/** 仅保留概览页签（已移除用量、网关与实时请求流页签）。 */
+export const TRAY_TABS: readonly TrayTabId[] = ["home"];
 
 export const TRAY_TAB_STORAGE_KEY = "codex-plus-tray-tab";
 
@@ -215,7 +215,7 @@ export type TrayRequest =
 export type TrayResult = { id: string; ok: boolean; message?: string };
 
 /** 面板能直接打开的主窗口页面。 */
-export const TRAY_ROUTES = ["overview", "sessions", "requestLog", "gateway", "gatewayProviders", "gatewayRouting", "gatewayUsage", "settings"] as const;
+export const TRAY_ROUTES = ["overview", "relay", "sessions", "settings"] as const;
 export type TrayRoute = (typeof TRAY_ROUTES)[number];
 
 export function isTrayRoute(value: unknown): value is TrayRoute {

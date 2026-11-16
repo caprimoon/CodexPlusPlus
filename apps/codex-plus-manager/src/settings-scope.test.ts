@@ -50,45 +50,34 @@ test("设置菜单只属于 Codex，Claude / Grok 不再显示只有跳转按钮
   assert.doesNotMatch(agent, /没有独立设置项|前往 Grok 配置|前往 Claude 增强/);
 });
 
-test("Computer Use 放在设置模式的 Beta 分组，不再出现在每个 Agent 的菜单里", () => {
+test("多 Agent Beta 页面（Computer Use / Agent 协作）与网关设置已从导航与设置菜单剥离", () => {
   const sections = text.slice(text.indexOf("const navigationSections"), text.indexOf("const globalNavigationRoutes"));
-  assert.doesNotMatch(sections, /"computerUse"/);
+  assert.doesNotMatch(sections, /"computerUse"|"agentCollaboration"/);
 
   const globalNavigation = text.slice(text.indexOf("const globalNavigationRoutes"), text.indexOf("const defaultSettings"));
-  assert.match(globalNavigation, /"computerUse"/);
-  // 推荐内容并进了首页（侧栏第一项），「工具」组从 Computer Use 开始；网关自己一组。
-  assert.match(globalNavigation, /const toolNavigationRoutes: Route\[\] = \["computerUse", "agentCollaboration",/);
-  assert.match(globalNavigation, /const gatewayNavigationRoutes: Route\[\] = \["hub", "gatewayProviders", "gateway", "gatewayRouting",/);
+  assert.doesNotMatch(globalNavigation.slice(0, globalNavigation.indexOf("\n")), /"computerUse"|"agentCollaboration"/);
+  assert.match(globalNavigation, /const toolNavigationRoutes: Route\[\] = \["agentCache"\];/);
+  assert.match(globalNavigation, /const gatewayNavigationRoutes: Route\[\] = \[\];/);
   const entries = text.slice(text.indexOf("function settingsNavEntries"), text.indexOf("const settingsModeRoutes"));
-  assert.match(entries, /\{ key: "computerUse", label: "Computer Use", icon: MousePointerClick, route: "computerUse", group: "beta"/);
+  assert.doesNotMatch(entries, /"computerUse"|"agentCollaboration"|"doctor"|"update"|"gateway"/);
   assert.match(entries, /entries\.filter\(\(entry\) => routeVisible\(focus, entry\.route\)/);
-  // 只管理 Codex 时不显示：Codex 自带 Computer Use，这一页接入的是其他客户端。
-  assert.match(globalNavigation, /const multiAgentRoutes = new Set<Route>\(\["agentCollaboration", "computerUse"\]\);/);
 });
 
 test("标题：设置模式用分类名，Agent 自己的页面和其余页面都用页面名", () => {
   const entry = functionSource("App");
   assert.match(entry, /settingsEntryKey\r?\n\s*\? settingsEntries\.find\(\(entry\) => entry\.key === settingsEntryKey\)\?\.label/);
-  // Agent 自己的页面：Agent 名字在侧栏，标题直接是页面名（概览、内置拓展…）。
   assert.match(entry, /onAgentPage\r?\n\s*\? routeTitle\(route\)/);
   assert.match(entry, /<h1 title=\{[^\n]*\}>\{pageTitle\}<\/h1>/);
   assert.match(entry, /const activeToolName = toolEntries\.find/);
 });
 
-test("只用增强功能：隐藏供应商页面，配置保存成功后才提交模式", () => {
+test("精简版仅管理 Codex：providerRoutes 仅保留 Codex 连接与多开，侧栏无网关分组或模式问卷", () => {
   const helpers = text.slice(text.indexOf("const multiAgentRoutes"), text.indexOf("function agentFocusDescription"));
-  assert.match(helpers, /const providerRoutes = new Set<Route>\(\["hub", "gatewayProviders", "gateway", "gatewayRouting", "gatewaySettings", "gatewayUsage", "requestLog", "relay", "relayEnvironment", "multiLaunch"\]\);/);
+  assert.match(helpers, /const providerRoutes = new Set<Route>\(\["relay", "relayEnvironment", "multiLaunch"\]\);/);
   assert.match(helpers, /providersHidden\(focus\) && providerRoutes\.has\(routeId\)/);
-  // 侧栏、页签、命令面板都按同一条规则过滤。
-  // 聚合网关整组按模式过滤，一项都不剩时连标题一起隐藏。
-  assert.match(functionSource("AppSidebar"), /const shownGateway = gatewayEntries\.filter\(\(item\) => routeVisible\(focus, item\.route\)\);/);
-  assert.match(functionSource("AppSidebar"), /\{shownGateway\.length \? \(/);
-  assert.match(functionSource("AppSidebar"), /\.flatMap\(\(entry\) => visibleRoutes\(focus, entry\.routes\)\)/);
+  const sidebar = functionSource("AppSidebar");
+  assert.doesNotMatch(sidebar, /shownGateway|gatewayEntries|<AgentFocusDialog/);
+  assert.match(sidebar, /\.flatMap\(\(entry\) => visibleRoutes\(focus, entry\.routes\)\)/);
   assert.match(text, /if \(!item \|\| !routeVisible\(agentFocus, routeId\)\) return null;/);
-  // 启动默认停在网关总览：模式不让看就回落脚页。
-  assert.match(text, /if \(!routeVisible\(agentFocus, route\)\) void navigate\(agentHomeRoute\[activeTool\] \?\? "overview"\);/);
-  assert.match(text, /closeAgentFocus = \(mode: FocusMode\) => commitAgentFocusSelection\(mode,/);
-  assert.match(text, /normalizeSettings\(\{ \.\.\.latest\.settings, relayProfilesEnabled: false \}\)/);
-  assert.match(text, /rebaseSettingsEdits\(normalizeSettings\(current\), previous, saved\)/);
-  assert.doesNotMatch(text, /relayOffRequested/);
+  assert.match(text, /if \(!routeVisible\(agentFocus, route\)\) \{[\s\S]{0,80}void navigate\("overview"\);/);
 });

@@ -3616,6 +3616,28 @@ export const EN_PLAIN: Record<string, string> = {
   "缺少 Node.js，无法启动本地服务": "Node.js is missing, so the local service cannot start",
   "Claude 本地模式": "Claude local mode",
   "操作失败": "The action failed",
+  // Stripped Codex-only variant copy
+  "Codex++ 给 Codex 加上拓展、皮肤增强与直连供应商管理。花半分钟认识一下侧栏。": "Codex++ adds extensions, DreamSkin themes and direct provider management to Codex. Take half a minute to meet the sidebar.",
+  "Codex 页面": "Codex pages",
+  "点开 Codex 后它的页面列在下面：概览、连接与供应商、内置拓展、皮肤……右侧的播放键可以启动或停止 Codex。": "Expand Codex to see its pages below: Overview, Connections & providers, Built-in extensions, DreamSkin... Use the play button on the right to start or stop Codex.",
+  "主题、配置文件、日志诊断和 Codex 设置都在齿轮里。想再看一遍这个引导，在「设置 → 通用」里重新打开。": "Themes, config files, logs, diagnostics and Codex settings live in the gear menu. You can replay this tour under Settings -> General.",
+  "查看各个核心入口的功能导览。": "Take a guided tour of the core sections.",
+  "只管理 Codex：仅保留 Codex 相关界面与设置。": "Codex only: keeps only Codex interfaces and settings.",
+  "只用增强功能：隐藏供应商，关闭供应商配置切换。": "Enhancements only: hides providers and disables provider profile switching.",
+  "管理 Codex 本地会话：在终端继续，并支持删除、归档与索引修复": "Manage local Codex sessions: resume in terminal, delete, archive and repair indexes",
+  "管理 Codex 的 MCP 服务器：打开即写入配置": "Manage Codex MCP servers and write changes straight to config",
+  "从 GitHub 仓库安装 Skill，并启用到 Codex": "Install Skills from GitHub repositories and enable them in Codex",
+  "万物皆拓展：社区、本地与自定义拓展": "Everything is an extension: community, local and custom extensions",
+  "扫描 Codex 与 Codex++ 的已知缓存目录，由你选择清理项目。": "Scan known cache folders for Codex and Codex++, then pick what to clear.",
+  "版本信息、项目链接、日志与诊断": "Version info, project links, logs and diagnostics",
+  "主题、配置文件与日志诊断": "Themes, config files, logs and diagnostics",
+  "浏览社区": "Browse community",
+  "面板里能看 Codex 状态、一键启动或重启、切换直连供应商。右键仍是原来的菜单，双击打开主窗口；关掉恢复原来的点击行为。": "Shows Codex status, quick launch/restart and direct providers. Right-click keeps the classic menu and double-click opens the main window; turn this off to restore the original click behavior.",
+  "关闭主窗口时连同界面一起释放，后台服务和托盘照常运行，从托盘再打开时重新加载界面。未保存的编辑内容会丢失；关掉则关闭窗口时只隐藏。": "Releases UI memory when the main window closes while keeping background services and the tray running, reloading the UI next time you open it from the tray. Unsaved edits will be lost; turn off to only hide the window on close.",
+  "后台任务的固定模型名改写为当前供应商的默认模型。": "Rewrites fixed internal model names used by background tasks to the current provider's default model.",
+  "为单个供应商单独指定 HTTP 代理；留空表示沿用系统代理。": "Set a dedicated HTTP proxy per provider; leave blank to follow the system proxy.",
+  "打开后，切换供应商或重启 Codex 时：实时 config.toml 里改过的 MCP 服务器（命令、参数、env、超时）以实时文件为准，缺失的项目信任设置和通知命令从实时文件补回。": "When enabled, switching providers or restarting Codex keeps MCP server edits from live config.toml and restores missing project trust and notification commands from the live file.",
+  "始终按目标重写的供应商设置：model_provider、model、供应商地址与凭据、模型目录。不论开关都保留：Codex++ 没有托管的 MCP / 插件条目与 [[skills.config]] 技能启停。": "Always rewritten from target provider: model_provider, model, provider endpoint & credentials, and model list. Always preserved regardless of toggle: unmanaged MCP / plugin entries and [[skills.config]] toggles.",
 };
 
 // Interpolated strings: tf("前缀 {0}", [x]) -> EN_TEMPLATE["前缀 {0}"] with {0} filled.

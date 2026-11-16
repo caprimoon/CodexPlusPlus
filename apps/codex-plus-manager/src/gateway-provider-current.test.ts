@@ -137,7 +137,7 @@ test("同名停用组不遮住所选供应商模型的冲突提示", () => {
     groups: [{ id: "daily", name: "Daily", mode: "inOrder", members: [], disabled: true }],
   };
   const agent = { agent: "codex", name: "Codex", enabled: true, defaultModel: "GROUP/daily" };
-  for (const [path, name] of [["GatewayAgents.tsx", "ModelPicker"], ["TrayPanel.tsx", "PanelAgentRow"]]) {
+  for (const [path, name] of [["GatewayAgents.tsx", "ModelPicker"]] as const) {
     const content = readFileSync(new URL(`./${path}`, import.meta.url), "utf8");
     const parsed = ts.createSourceFile(path, content, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
     const target = parsed.statements.find((node: any) => ts.isFunctionDeclaration(node) && node.name?.text === name);
@@ -180,7 +180,7 @@ test("停用的默认供应商显示实际回退模型，恢复后显示原选�
     ],
   };
   const agent = { agent: "codex", name: "Codex", enabled: true, defaultModel: "fallback-model" };
-  for (const [path, name] of [["GatewayAgents.tsx", "ModelPicker"], ["TrayPanel.tsx", "PanelAgentRow"]]) {
+  for (const [path, name] of [["GatewayAgents.tsx", "ModelPicker"]] as const) {
     const content = readFileSync(new URL(`./${path}`, import.meta.url), "utf8");
     const parsed = ts.createSourceFile(path, content, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
     const target = parsed.statements.find((node: any) => ts.isFunctionDeclaration(node) && node.name?.text === name);
@@ -247,7 +247,7 @@ test("停用的默认供应商显示实际回退模型，恢复后显示原选�
 });
 
 test("接入后的空绑定和停用组使用网关默认模型，拓展成员不误标为本地供应商", () => {
-  for (const [path, name] of [["GatewayAgents.tsx", "ModelPicker"], ["TrayPanel.tsx", "PanelAgentRow"]]) {
+  for (const [path, name] of [["GatewayAgents.tsx", "ModelPicker"]] as const) {
     const content = readFileSync(new URL(`./${path}`, import.meta.url), "utf8");
     const parsed = ts.createSourceFile(path, content, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
     const target = parsed.statements.find((node: any) => ts.isFunctionDeclaration(node) && node.name?.text === name);

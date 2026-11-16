@@ -8,12 +8,14 @@ import test from "node:test";
  */
 const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
 
-test("provider view tabs keep model aggregation right after direct", () => {
-  // 分页是「Codex 连接」页直连供应商一节的筛选胶囊，顺序就是这个数组。
+test("provider view tabs keep direct and routing only without aggregate modes", () => {
+  // 精简版「连接与供应商」只保留直连和需协议转换两种分页，去掉聚合供应商（故障转移 / 模型聚合）。
   const match = source.match(/items=\{\(\[([^\]]+)\] as ProviderViewKind\[\]\)\.map/);
   assert.ok(match, "App.tsx 里找不到供应商分页胶囊");
   const order = [...match[1].matchAll(/"([A-Za-z]+)"/g)].map((item) => item[1]);
 
-  assert.deepEqual(order, ["direct", "modelAggregation", "routing", "failover"]);
+  assert.deepEqual(order, ["direct", "routing"]);
   assert.match(source, /onChange=\{selectProviderView\}/);
+  const relayScreen = source.slice(source.indexOf("function RelayScreen("), source.indexOf("function multiLaunchSupported("));
+  assert.doesNotMatch(relayScreen, /createNewAggregateProfile|cx-aggregate-note|PoolLinkControl|LegacyRelayGatewayHint/);
 });

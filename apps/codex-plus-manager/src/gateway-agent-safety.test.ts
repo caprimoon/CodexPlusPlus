@@ -47,8 +47,7 @@ test("供应商配置总开关关闭时只阻止 Codex 重新接入，旧 payloa
   assert.match(agents, /const reconnect = \(\) =>\s*run\(`save:\$\{agent\.agent\}`, "save_gateway_binding", \{ agent: agent\.agent, binding: bindingFromDraft\(draft, binding\), reconnect: true \}/);
   assert.match(agents, /run\(`save:\$\{agent\.agent\}`, "save_gateway_binding", \{ agent: agent\.agent, binding: bindingFromDraft\(next, binding, item\) \}/);
   const app = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
-  assert.match(app, /onOpenCodexProviderSettings=\{\(\) => \{ void switchTool\("codex", "relay"\); \}\}/);
-  assert.match(app, /takenOverByGateway && normalized\.relayProfilesEnabled \? null : \(/);
+  assert.doesNotMatch(app, /<GatewayPage\b|<LegacyRelayGatewayHint\b/);
 });
 
 test("预览授权绑定Agent与非空token；文件状态和未知诊断证据不被误标成功", () => {
@@ -283,115 +282,9 @@ test("断开并直连明确预览范围，携带相同确认token", async () => 
   assert.equal(dialog.closeCount(), 0, "卸载后的结果不再次触发关闭");
 });
 
-function renderTrayAgent(connected: boolean, requiresDisconnectPreview = false, group?: { disabled: boolean }) {
-  const sourceFile = ts.createSourceFile("TrayPanel.tsx", readFileSync(new URL("./TrayPanel.tsx", import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
-  const component = sourceFile.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "PanelAgentRow");
-  assert.ok(component);
-  const compiled = ts.transpileModule(`export ${component.getText(sourceFile)}`, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  }).outputText;
-  const hooks: any[] = [];
-  let cursor = 0;
-  const calls: Array<{ command: string; args: Record<string, unknown> }> = [];
-  const exports: Record<string, any> = {};
-  const jsx = (type: unknown, props: Record<string, any>) => ({ type, props });
-  vm.runInNewContext(compiled, {
-    exports,
-    require: (name: string) => {
-      assert.equal(name, "react/jsx-runtime");
-      return { jsx, jsxs: jsx };
-    },
-    useState: (initial: unknown) => {
-      const index = cursor++;
-      if (!(index in hooks)) hooks[index] = initial;
-      return [hooks[index], (value: unknown) => { hooks[index] = value; }];
-    },
-    useRef: (initial: unknown) => {
-      const index = cursor++;
-      if (!(index in hooks)) hooks[index] = { current: initial };
-      return hooks[index];
-    },
-    AgentIcon: "AgentIcon", ModelViewGlyph: "ModelViewGlyph", AutoTag: "AutoTag", ChevronDown: "ChevronDown", Check: "Check", AlertTriangle: "AlertTriangle",
-    Floating: "Floating", ModelList: "ModelList", AgentDisconnectDialog: "AgentDisconnectDialog",
-    draftFromBinding: () => ({ model: group ? "group/daily" : "gpt", poolExclude: [] }),
-    disabledGroup,
-    modelDisplay: (_payload: unknown, model: string) => ({ title: model === "group/daily" ? "Daily" : "GPT" }),
-    ownCurrent: () => null,
-    visibleOwnModels: () => [],
-    agentModels: () => [],
-    bindingFromDraft: (value: unknown) => value,
-    t: (value: string) => value,
-    tf: (value: string, values: string[]) => value.replace(/\{(\d+)\}/g, (_, index) => values[Number(index)]),
-  });
-  return {
-    calls,
-    render: () => {
-      cursor = 0;
-      return exports.PanelAgentRow({
-        agent: { ...agent(), enabled: connected, requiresDisconnectPreview, defaultModel: group && !group.disabled ? "group/daily" : "gpt" },
-        payload: group ? { groups: [{ id: "daily", name: "Daily", disabled: group.disabled }], gateway: { bindings: {} } } : null,
-        onRun: async (command: string, args: Record<string, unknown>) => { calls.push({ command, args }); return true; },
-      }) as Element;
-    },
-  };
-}
-
-test("托盘在模型组停用时显示回退模型，重新启用后恢复原组", () => {
-  const group = { disabled: true };
-  const tray = renderTrayAgent(true, false, group);
-  let tree = tray.render();
-  let picker = elements(tree).find((element) => element.props.className === "gw-picker-button tp-agent-picker")!;
-  assert.match(text(picker), /GPT/);
-  assert.equal(picker.props.title, "原模型组「Daily」已停用，网关默认回退为 GPT");
-  assert.equal(elements(tree).find((element) => element.type === "ModelList")!.props.selectedModel, "gpt");
-
-  group.disabled = false;
-  tree = tray.render();
-  picker = elements(tree).find((element) => element.props.className === "gw-picker-button tp-agent-picker")!;
-  assert.match(text(picker), /Daily/);
-  assert.equal(picker.props.title, undefined);
-  assert.equal(elements(tree).find((element) => element.type === "ModelList")!.props.selectedModel, "group/daily");
-});
-
-test("托盘已连接Agent的默认与直连选择共用预览确认，未连接直连保持直接切换", async () => {
-  const tray = renderTrayAgent(true);
-  let tree = tray.render();
-  const list = elements(tree).find((element) => element.type === "ModelList")!;
-  list.props.head.props.onClick();
-  assert.equal(tray.calls.length, 0, "选择默认不应先执行断开");
-  tree = tray.render();
-  let dialog = elements(tree).find((element) => element.type === "AgentDisconnectDialog")!;
-  assert.ok(dialog);
-  assert.equal(await dialog.props.onApply("reviewed-default"), true);
-  assert.equal(tray.calls[0].command, "disable_gateway_binding");
-  assert.equal(tray.calls[0].args.previewToken, "reviewed-default");
-  dialog.props.onClose();
-  tree = tray.render();
-  elements(tree).find((element) => element.type === "ModelList")!.props.onPickOwn({ model: "gpt-own", label: "Own GPT" });
-  tree = tray.render();
-  dialog = elements(tree).find((element) => element.type === "AgentDisconnectDialog")!;
-  assert.equal(dialog.props.ownModel.model, "gpt-own");
-  assert.equal(tray.calls.length, 1, "已连接选自带模型也需等确认");
-  await dialog.props.onApply("reviewed-own");
-  assert.equal(tray.calls[1].command, "use_gateway_own_model");
-  assert.equal(tray.calls[1].args.model, "gpt-own");
-  assert.equal(tray.calls[1].args.previewToken, "reviewed-own");
-
-  const direct = renderTrayAgent(false);
-  tree = direct.render();
-  elements(tree).find((element) => element.type === "ModelList")!.props.onPickOwn({ model: "gpt-own", label: "Own GPT" });
-  assert.equal(direct.calls[0].command, "use_gateway_own_model");
-  assert.equal("previewToken" in direct.calls[0].args, false);
-  assert.equal(elements(direct.render()).some((element) => element.type === "AgentDisconnectDialog"), false);
-
-  const orphan = renderTrayAgent(false, true);
-  tree = orphan.render();
-  elements(tree).find((element) => element.type === "ModelList")!.props.onPickOwn({ model: "gpt-own", label: "Own GPT" });
-  assert.equal(orphan.calls.length, 0, "绑定丢失但仍在使用托管供应商时也必须预览");
-  dialog = elements(orphan.render()).find((element) => element.type === "AgentDisconnectDialog")!;
-  assert.ok(dialog);
-  await dialog.props.onApply("reviewed-orphan");
-  assert.equal(orphan.calls[0].args.previewToken, "reviewed-orphan");
+test("托盘面板已剥离网关接入与模型选择控件，仅保留 Codex 控制", () => {
+  const tray = readFileSync(new URL("./TrayPanel.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(tray, /function PanelAgentRow|ModelList|AgentDisconnectDialog|use_gateway_own_model|disable_gateway_binding/);
 });
 
 test("展开详情才展示配置证据；无证据不声称配置已验证，错误类型也显示中文", () => {
@@ -442,5 +335,5 @@ test("没法逐项预览的 Codex 断开：只在后端给了完整切换目标�
   // 改用自带模型时不走完整切换；调用方没给 onFullSwitch 时也不给这条路。
   assert.match(dialog, /const fullSwitch = !ownModel && onFullSwitch && fullSwitchReady\(preview, agent\.agent\) \? preview : null;/);
   const app = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
-  assert.match(app, /invoke<GatewayResult>\("disable_gateway_binding_full_switch", \{ agent: "codex", previewToken \}\)/);
+  assert.doesNotMatch(app, /disable_gateway_binding_full_switch/);
 });

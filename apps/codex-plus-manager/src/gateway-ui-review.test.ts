@@ -236,24 +236,20 @@ test("生图模型在 Agent 接入里按 Agent 选；供应商池按模型改思
   assert.match(read("GatewayProviders.tsx"), /"save_gateway_provider_metadata", \{ id: entry\.id, modelMetadata \}/);
 });
 
-test("用量与请求日志并成一页：两个页签各是一条路由，统计表点一行跳到请求并筛选", () => {
+test("用量与请求日志页面已从 App 路由剥离；统计内部组件逻辑仍保留", () => {
   const app = read("App.tsx");
-  assert.match(app, /route === "gatewayUsage" \|\| route === "requestLog" \? <UsageTabs onChange=\{\(next\) => void navigate\(next\)\} value=\{route\} \/> : null/);
-  assert.match(app, /match: \["gatewayUsage", "requestLog"\]/, "在请求页签时侧栏「用量」也是选中");
-  assert.match(app, /useEffect\(\(\) => onOpenRequestLog\(\(focus\) => \{/);
+  assert.doesNotMatch(app, /<UsageTabs\b|<RequestLogScreen\b|onOpenRequestLog/);
   assert.match(read("GatewayUsage.tsx"), /onClick=\{\(\) => openRequestLog\(split === "agent"/);
   assert.match(read("GatewayUsage.tsx"), /\{ relayId: group\.key, relayLabel: maskAccountName\(group\.label\), range \}/, "按供应商 id 精确筛，时间段跟着统计页");
   assert.match(read("GatewayUsage.tsx"), /\{ model: group\.key, range \}/);
-  assert.match(app, /invoke<RequestLogsResult>\("load_request_logs", filterRef\.current\)/, "时间段、供应商、模型在后端筛，先截 300 条再筛会漏");
-  assert.match(app, /entry\.statusCode \|\| \(entry\.success \? "OK" : "ERR"\)/);
   assert.match(read("GatewayPage.tsx"), /<TopbarActions>\{tab === "usage" \? null : refreshButton\}<\/TopbarActions>/, "用量页签只留一个刷新");
 });
 
-test("启动落在首页（赞助商推荐），不落在上次那个 Agent 的概览", () => {
+test("启动默认落在 Codex 概览，不再落在首页推荐页", () => {
   const app = read("App.tsx");
-  const body = app.slice(app.indexOf("function loadInitialRoute(): Route {"), app.indexOf("function initialTourOpen"));
-  assert.match(body, /return "home";\r?\n\}/);
-  assert.doesNotMatch(body, /return "overview"/);
+  const body = app.slice(app.indexOf("function loadInitialRoute(): Route {"), app.indexOf("function initialSetupOpen"));
+  assert.match(body, /return "overview";\r?\n\}/);
+  assert.doesNotMatch(body, /return "home"/);
 });
 
 test("保存之后才回来的轮询结果作废；新手引导的 Esc 走 Esc 栈", () => {

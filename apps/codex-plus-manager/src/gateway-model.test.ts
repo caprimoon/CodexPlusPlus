@@ -506,14 +506,9 @@ test("供应商表单：多 Key 每行一个；本机服务预填 Key；编辑�
   assert.deepEqual(providerInput({ ...editing, priceInput: "2", priceCached: "0.5", priceOutput: "abc" }).price, { currency: "CNY", input: 2, cachedInput: 0.5, output: 0 });
 });
 
-test("网关页接入导航，命令已注册", () => {
-  assert.match(app, /id: "gateway"/);
-  // 网关各页签由侧栏直接选中：路由 → 页签一一对应，页内不再显示标签条。
-  assert.match(app, /gatewayTabByRoute\[route\] \? \(\s*<GatewayPage[\s\S]*?tab=\{gatewayTabByRoute\[route\]\}/);
-  // 网关的「会话」已并进全局管理的「会话」页（sessions 路由），这里不再有单独的 gatewaySessions。
-  for (const [route, tab] of [["gateway", "agents"], ["gatewayProviders", "providers"], ["gatewayRouting", "routing"], ["gatewayUsage", "usage"], ["gatewaySettings", "gateway"]]) {
-    assert.match(app, new RegExp(`${route}: "${tab}"`));
-  }
+test("聚合网关前端入口已剥离，底层 Rust gateway_commands 命令仍保留", () => {
+  assert.match(app, /const gatewayTabByRoute: Partial<Record<Route, GatewayTab>> = \{\};/);
+  assert.doesNotMatch(app, /<GatewayPage\b|<HubOverview\b/);
   for (const command of [
     "load_gateway",
     "save_gateway_binding",
@@ -749,17 +744,14 @@ test("Agent 自带的模型：单独一组、标出直连对象，按名字或�
   assert.equal(ownPickerSection(null, "", (name) => name), null);
 });
 
-test("模型下拉：接入着选自带模型先预览还原，主窗口和托盘确认后才带token切换", () => {
+test("模型下拉：接入着选自带模型先预览还原，主窗口确认后才带token切换；托盘已精简不显示模型下拉", () => {
   const agents = readFileSync(new URL("./GatewayAgents.tsx", import.meta.url), "utf8");
   assert.match(agents, /"use_gateway_own_model"/);
   assert.match(agents, /if \(connected \|\| agent\.requiresDisconnectPreview\) \{\s*setDisconnectTarget\(item\)/);
   assert.match(agents, /<AgentDisconnectDialog/);
   assert.match(agents, /model: disconnectTarget\.model, previewToken/);
   const tray = readFileSync(new URL("./TrayPanel.tsx", import.meta.url), "utf8");
-  assert.match(tray, /onPickOwn=\{/);
-  assert.match(tray, /"use_gateway_own_model"/);
-  assert.match(tray, /if \(agent\.enabled \|\| agent\.requiresDisconnectPreview\) setDisconnectTarget\(item\)/);
-  assert.match(tray, /model: disconnectTarget\.model, previewToken/);
+  assert.doesNotMatch(tray, /onPickOwn=|ModelList/);
 });
 
 test("自带模型开关：关掉后只留 Agent 现在用着的那一个，没用着就整组不列", () => {

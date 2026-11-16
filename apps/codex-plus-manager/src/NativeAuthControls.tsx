@@ -21,7 +21,7 @@ function useSavedAuthAccounts() {
       const result = await invoke<NativeAuthResult>("get_native_auth_state");
       if (current !== sequence.current) return;
       if (result.status !== "ok") throw new Error(result.message);
-      setState(result);
+      setState({ ...result, accounts: Array.isArray(result.accounts) ? result.accounts : [] });
     } catch (failure) {
       if (current === sequence.current) setError(String(failure));
     } finally {
@@ -42,6 +42,7 @@ export function NativeAuthControl({ onRestart }: { onRestart?: () => Promise<boo
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const current = state ? nativeAuthSelection(state) : "";
+  const accounts = Array.isArray(state?.accounts) ? state.accounts : [];
   const value = chosen ?? current;
   const busy = loading || saving || restarting;
   const save = async () => {
@@ -89,8 +90,8 @@ export function NativeAuthControl({ onRestart }: { onRestart?: () => Promise<boo
           options={[
             ...(!current ? [{ value: "", label: state?.actualLabel || t("尚未指定") }] : []),
             { value: "none", label: t("不登录"), hint: t("保留已保存账号") },
-            ...(state?.accounts.map((account) => ({ value: `account:${account.id}`, label: savedAuthLabel(account) })) ?? []),
-            ...(current.startsWith("account:") && !state?.accounts.some((account) => `account:${account.id}` === current) ? [{ value: current, label: t("已选账号不可用") }] : []),
+            ...accounts.map((account) => ({ value: `account:${account.id}`, label: savedAuthLabel(account) })),
+            ...(current.startsWith("account:") && !accounts.some((account) => `account:${account.id}` === current) ? [{ value: current, label: t("已选账号不可用") }] : []),
           ]}
           value={value}
         />
@@ -115,6 +116,7 @@ export function NativeAuthControl({ onRestart }: { onRestart?: () => Promise<boo
 /** 供应商绑定只保存引用；当前原生登录由上方独立控件选择。 */
 export function SavedAuthAccountField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const { state, loading, error, reload } = useSavedAuthAccounts();
+  const accounts = Array.isArray(state?.accounts) ? state.accounts : [];
   return (
     <div className="native-auth-control">
       <div className="native-auth-row">
@@ -126,8 +128,8 @@ export function SavedAuthAccountField({ value, onChange }: { value: string; onCh
             onChange={onChange}
             options={[
               { value: "", label: t("未绑定账号") },
-              ...(state?.accounts.map((account) => ({ value: account.id, label: savedAuthLabel(account) })) ?? []),
-              ...(value && !state?.accounts.some((account) => account.id === value) ? [{ value, label: t("已绑定账号不可用") }] : []),
+              ...accounts.map((account) => ({ value: account.id, label: savedAuthLabel(account) })),
+              ...(value && !accounts.some((account) => account.id === value) ? [{ value, label: t("已绑定账号不可用") }] : []),
             ]}
             value={value}
           />

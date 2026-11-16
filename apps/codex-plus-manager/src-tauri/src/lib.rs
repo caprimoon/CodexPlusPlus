@@ -237,49 +237,7 @@ pub fn run() {
             }
         }
     }
-    // 清理以前自动更新留在 app 同级目录里的 .codex-plus-update-<uuid> 残留（#2774）。
-    // 删旧 app 备份要些时间，放后台线程；刚由旧版 helper 完成的更新会在 helper 退出后补跑清掉。
-    // 失败只记诊断日志，不影响启动。
-    #[cfg(target_os = "macos")]
-    std::thread::spawn(codex_plus_core::update::macos::cleanup_stale_update_transactions);
-    // 已经装上的版本不再需要安装包：删掉 updates/ 里不高于当前版本的安装包（#3094）。
-    std::thread::spawn(|| {
-        let removed = codex_plus_core::update::prune_installed_installers(
-            &codex_plus_core::paths::default_app_state_dir().join("updates"),
-            codex_plus_core::version::VERSION,
-        );
-        if !removed.is_empty() {
-            let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
-                "update.installers_pruned",
-                serde_json::json!({
-                    "count": removed.len(),
-                    "files": removed
-                        .iter()
-                        .filter_map(|path| path.file_name())
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .collect::<Vec<_>>(),
-                }),
-            );
-        }
-    });
-    // Codex++ 重启后在原端口恢复 Claude 仍挂接着的本地代理（后台做，不阻塞启动）。
-    std::thread::spawn(|| {
-        match codex_plus_core::claude_local_backend::resume_attached_proxy() {
-            Ok(Some(port)) => {
-                let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
-                    "claude_local.resumed",
-                    serde_json::json!({"port": port}),
-                );
-            }
-            Ok(None) => {}
-            Err(error) => {
-                let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
-                    "claude_local.resume_failed",
-                    serde_json::json!({"message": format!("{error:#}")}),
-                );
-            }
-        }
-    });
+    // 启动阶段已剥离自动更新清理与 Claude 本地代理恢复后台线程（仅保留 Codex 相关流程）。
     if let Ok(settings) = codex_plus_core::settings::SettingsStore::default().load() {
         // 请求体上限是运行期策略：管理器启动即按设置应用，之后启动的 helper 直接继承，
         // 不必等完整启动流程。环境变量仍由 launcher 侧统一优先。
@@ -298,7 +256,6 @@ pub fn run() {
             );
         }
     }
-    let show_update = commands::startup_should_show_update();
     let autostart = std::env::args().any(|arg| arg == "--autostart");
     let start_minimized = autostart && codex_plus_core::watcher::watcher_start_minimized();
     let start_codex_at_login = autostart && codex_plus_core::watcher::watcher_start_codex();
@@ -306,23 +263,14 @@ pub fn run() {
     let app_result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
-            let url = if show_update {
-                "/index.html?showUpdate=1"
-            } else {
-                MAIN_WINDOW_URL
-            };
             lightweight::install_ready_listener(app.handle());
-            build_main_window(app.handle(), url, !start_minimized)?;
+            build_main_window(app.handle(), MAIN_WINDOW_URL, !start_minimized)?;
             install_tray(app)?;
-            gateway_commands::set_app_handle(app.handle().clone());
             // Codex 钩子的分发条目里写的是程序绝对路径：程序换了位置（更新、换安装目录）后
             // 旧条目会指向不存在的路径，启动时按当前程序与拓展同步一次。没有拓展钩子时只读不写。
             tauri::async_runtime::spawn_blocking(|| {
                 codex_plus_core::extension_hooks::sync_default(&commands::default_user_script_manager());
             });
-            codex_plus_core::settings::set_external_settings_change_listener(
-                gateway_commands::notify_settings_changed,
-            );
             if start_minimized {
                 set_manager_activation_policy(app.handle(), false);
             }
@@ -336,17 +284,12 @@ pub fn run() {
                 Ok(())
             });
             start_window_activation_listener(app.handle().clone());
-            // Computer Use 操作后台应用时的悬浮预览（同 Codex 的画中画）。
-            cu_pip::start(app.handle().clone());
+            // 已剥离 Computer Use 悬浮预览与聚合网关后台常驻/监听线程，仅启动 Codex 相关服务。
             commands::start_weixin_connect_from_saved_settings();
             commands::resume_existing_codex_background(
                 app.handle().clone(),
                 start_codex_at_login || start_codex_on_open,
             );
-            // 网关模式：有 Agent 走网关时常驻 helper 必须在线。后台线程里跑，
-            // WSL 网卡查询与监听绑定不拖慢窗口出现。
-            gateway_commands::start_from_saved_state_in_background();
-            gateway_commands::start_model_watch();
             // 自动接管官方 App（默认关闭）：设置里开着才起守护线程。
             auto_takeover::start_supervisor();
             if let Err(error) = global_dictation::apply_config() {

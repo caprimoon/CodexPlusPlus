@@ -25,7 +25,14 @@ export function NativeBrowserStatusView() {
     setBusy(true);
     try {
       const next = await invoke<NativeBrowserDiagnostics>("native_browser_status");
-      if (mounted.current) setResult(next);
+      if (mounted.current && next?.compatibility && next?.connection) {
+        setResult(next);
+      } else if (mounted.current) {
+        setResult({
+          compatibility: { state: "unavailable", detail: "" },
+          connection: { state: "check_failed", browsers: [], failedChecks: 1 },
+        });
+      }
     } catch {
       if (mounted.current) setResult({
         compatibility: { state: "unavailable", detail: "" },

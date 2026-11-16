@@ -49,11 +49,10 @@ test("自动组：关了自动建组、或这个自动组被隐藏时，不出�
   assert.match(page, /"save_gateway_auto_models", \{ enabled: !autoOn \}/, "自动建组开关在路由页");
 });
 
-test("模型按钮：自动切换的模型带「自动」标签与专用图标；Codex 目录侧同样拆开（后端测试覆盖）", () => {
+test("模型按钮：自动切换的模型带「自动」标签与专用图标；托盘面板已精简不显示网关模型按钮", () => {
   const ui = readFileSync(new URL("./gateway-ui.tsx", import.meta.url), "utf8");
   assert.match(ui, /export function ModelViewGlyph/);
   assert.match(ui, /export function AutoTag/);
-  for (const file of ["./GatewayAgents.tsx", "./TrayPanel.tsx"]) {
-    assert.match(readFileSync(new URL(file, import.meta.url), "utf8"), /<AutoTag view=\{display\} \/>/, file);
-  }
+  assert.match(readFileSync(new URL("./GatewayAgents.tsx", import.meta.url), "utf8"), /<AutoTag view=\{display\} \/>/, "./GatewayAgents.tsx");
+  assert.doesNotMatch(readFileSync(new URL("./TrayPanel.tsx", import.meta.url), "utf8"), /<AutoTag\b/);
 });

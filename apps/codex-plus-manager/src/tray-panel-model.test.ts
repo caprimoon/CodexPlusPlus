@@ -39,21 +39,21 @@ const throwingStorage = {
   },
 };
 
-test("托盘面板四个页签：概览、用量、网关、实时；默认是概览；没有旧版的供应商切换", () => {
-  assert.deepEqual([...TRAY_TABS], ["home", "usage", "gateway", "flow"]);
-  assert.equal(restoreTrayTab("flow"), "flow");
-  assert.equal(restoreTrayTab("providers"), "home", "上次停在已去掉的「供应商」页签时回到概览");
+test("托盘面板精简为单一概览视图，不认识的历史页签值回退到 home", () => {
+  assert.deepEqual([...TRAY_TABS], ["home"]);
+  assert.equal(restoreTrayTab("home"), "home");
+  assert.equal(restoreTrayTab("providers"), "home", "上次停在已去掉的页签时回到概览");
   assert.equal(restoreTrayTab(null), "home");
-  assert.equal(restoreTrayTab("gateway"), "gateway");
-  assert.equal(restoreTrayTab("routing"), "home", "不认识的旧值回到概览");
+  assert.equal(restoreTrayTab("gateway"), "home");
+  assert.equal(restoreTrayTab("usage"), "home");
 });
 
 test("记住上次的页签：读写 localStorage，存储不可用时不抛错", () => {
   const storage = memoryStorage();
-  storeTrayTab("usage", storage);
-  assert.equal(storage.data.get(TRAY_TAB_STORAGE_KEY), "usage");
-  assert.equal(readStoredTrayTab(storage), "usage");
-  assert.doesNotThrow(() => storeTrayTab("gateway", throwingStorage));
+  storeTrayTab("home", storage);
+  assert.equal(storage.data.get(TRAY_TAB_STORAGE_KEY), "home");
+  assert.equal(readStoredTrayTab(storage), "home");
+  assert.doesNotThrow(() => storeTrayTab("home", throwingStorage));
   assert.equal(readStoredTrayTab(throwingStorage), "home");
   assert.equal(readStoredTrayTab(null), "home");
 });
@@ -150,23 +150,22 @@ test("订阅额度：只列有额度的启用供应商，过了重置时间按�
   assert.deepEqual(trayQuotaRows(undefined, now), []);
 });
 
-test("主窗口只接受格式正确的面板请求", () => {
-  assert.deepEqual(parseTrayRequest({ id: "1", kind: "navigate", route: "gatewayRouting" }), { id: "1", kind: "navigate", route: "gatewayRouting" });
-  assert.equal(parseTrayRequest({ id: "1", kind: "navigate", route: "relay" }), null, "旧版供应商页不从面板打开");
+test("主窗口只接受格式正确的面板请求（仅允许 Codex 核心路由与启停）", () => {
+  assert.deepEqual(parseTrayRequest({ id: "1", kind: "navigate", route: "relay" }), { id: "1", kind: "navigate", route: "relay" });
+  assert.deepEqual(parseTrayRequest({ id: "1", kind: "navigate", route: "overview" }), { id: "1", kind: "navigate", route: "overview" });
+  assert.equal(parseTrayRequest({ id: "1", kind: "navigate", route: "gatewayRouting" }), null, "已移除的网关路由不从面板打开");
   assert.equal(parseTrayRequest({ id: "1", kind: "navigate", route: "dreamSkin" }), null, "不在白名单里的页面不打开");
-  assert.equal(parseTrayRequest({ id: "2", kind: "switchRelay", profileId: "a" }), null, "面板不再切换直连供应商");
+  assert.equal(parseTrayRequest({ id: "2", kind: "switchRelay", profileId: "a" }), null, "面板不直接切换供应商");
   assert.deepEqual(parseTrayRequest({ id: "3", kind: "restart" }), { id: "3", kind: "restart" });
   assert.equal(parseTrayRequest({ kind: "launch" }), null);
   assert.equal(parseTrayRequest({ id: "4", kind: "deleteEverything" }), null);
   assert.equal(parseTrayRequest(null), null);
 });
 
-test("托盘面板改成多页签：网关只是一个页签，记住页签，改配置的操作交给主窗口", () => {
+test("托盘面板只保留 Codex 状态与快捷导航，改配置交给主窗口", () => {
   const panel = read("./TrayPanel.tsx");
-  assert.match(panel, /role="tablist"/);
-  assert.match(panel, /TRAY_TABS\.map/);
-  assert.match(panel, /storeTrayTab\(next\)/);
-  assert.match(panel, /readStoredTrayTab\(\)/);
+  assert.doesNotMatch(panel, /role="tablist"/);
+  assert.doesNotMatch(panel, /gatewayUsage|gatewayProviders|gatewayRouting|load_gateway|load_usage|load_request_logs/);
   assert.match(panel, /emit\(TRAY_REQUEST_EVENT/);
   // 面板自己不调切换供应商 / 启动 Codex 的命令，免得绕过主窗口的校验与冲突弹窗。
   assert.doesNotMatch(panel, /"switch_relay_profile"|"launch_codex_plus"|"restart_codex_plus"|"stop_codex_plus"/);

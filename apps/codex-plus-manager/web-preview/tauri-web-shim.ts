@@ -944,6 +944,21 @@ export async function invoke<T = unknown>(command: string, args: Record<string, 
         integration: { status: "connected", message: "已登记到 ~/.codex/config.toml", home: "~/.codex" },
         capabilities: { maxQueuedPerAgent: 8, maxConcurrentTasksLimit: 4 },
       }) as T;
+    case "get_native_auth_state":
+    case "set_native_auth_account": return {
+      status: "ok",
+      message: "",
+      managed: false,
+      selection: null,
+      actualAccountRef: "",
+      actualLabel: "",
+      accounts: [],
+      drift: null,
+    } as T;
+    case "native_browser_status": return {
+      compatibility: { state: "not_started", detail: "" },
+      connection: { state: "unavailable", browsers: [], failedChecks: 0 },
+    } as T;
     default: return ok() as T;
   }
 }
