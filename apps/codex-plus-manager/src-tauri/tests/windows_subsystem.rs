@@ -63,8 +63,8 @@ fn manager_close_minimizes_to_tray_without_confirmation() {
     assert!(!lib_rs.contains("manager://close-requested"));
     assert!(lib_rs.contains("let _ = close_event_window.hide();"));
     assert!(!lib_rs.contains("startup_is_transient()"));
-    // 登录启动可以按已有设置隐藏窗口，手动打开仍保持可见。
-    assert!(lib_rs.contains("build_main_window(app.handle(), url, !start_minimized)"));
+    // 登录启动可以按已有设置隐藏窗口，手动打开仍保持可见，且已剥离更新弹窗 URL 参数。
+    assert!(lib_rs.contains("build_main_window(app.handle(), MAIN_WINDOW_URL, !start_minimized)"));
     assert!(lib_rs.contains(".visible(visible)"));
     assert!(lib_rs.contains("codex_plus_launcher::shutdown()"));
     assert!(!app_tsx.contains("CloseConfirmDialog"));
@@ -382,9 +382,9 @@ fn relay_settings_keeps_profile_config_and_auth_files_isolated() {
     assert!(app_tsx.contains("function relayProfileSwitchCommand"));
     assert!(app_tsx.contains("return \"apply_pure_api_injection\""));
     assert!(app_tsx.contains("return \"apply_relay_injection\""));
-    assert!(app_tsx.contains("const createNewAggregateProfile = (mode: AggregateMode)"));
-    assert!(app_tsx.contains("onClick={() => createNewAggregateProfile("));
-    assert!(app_tsx.contains("已打开聚合供应商详情"));
+    assert!(!app_tsx.contains("createNewAggregateProfile"));
+    assert!(!app_tsx.contains("onClick={() => createNewAggregateProfile("));
+    assert!(!app_tsx.contains("已打开聚合供应商详情"));
     assert!(app_tsx.contains(
         "buildRelayConfigToml(profile, { includeBearerToken: !profile.noAuth, requiresOpenAiAuth: false })"
     ));
@@ -533,22 +533,17 @@ fn manager_ui_no_longer_exposes_command_wrapper_or_startup_marketplace_prompt() 
 }
 
 #[test]
-fn manager_update_install_keeps_visible_progress_bar() {
+fn manager_update_ui_and_progress_bar_are_stripped() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let app_tsx = manifest_dir.parent().unwrap().join("src/App.tsx");
     let app_tsx = std::fs::read_to_string(&app_tsx).expect("read manager App.tsx");
 
-    // 有可用更新时后台先下好安装包：按钮按是否下好写「安装 / 下载并安装」，弹窗里写「立即安装 / 立即更新」。
-    assert!(app_tsx.contains("t(\"下载并安装\")"));
-    assert!(app_tsx.contains("t(\"立即安装\")"));
-    assert!(app_tsx.contains("updateInstallProgress"));
-    assert!(app_tsx.contains("安装包更新进度"));
-    assert!(app_tsx.contains("completedTitle={t(\"上次更新结果\")}"));
-    assert!(app_tsx.contains("progress={updateInstallProgress}"));
-    assert!(app_tsx.contains("listen<UpdateProgressEvent>(\"update-progress\""));
-    assert!(app_tsx.contains("data-indeterminate"));
-    assert!(app_tsx.contains("正在写入安装包并准备安装"));
-    assert!(app_tsx.contains("正在启动安装器"));
-    assert!(!app_tsx.contains("current.percent + 0.2"));
-    assert!(!app_tsx.contains("下载或启动耗时较长"));
+    // 已完整剥离「版本与更新」入口、弹窗及后台检查/下载安装流程。
+    assert!(!app_tsx.contains("<UpdateDialog"));
+    assert!(!app_tsx.contains("app-settings-update"));
+    assert!(!app_tsx.contains("UPDATE_CHECK_INTERVAL_MS"));
+    assert!(!app_tsx.contains("updateInstallProgress"));
+    assert!(!app_tsx.contains("checkUpdate("));
+    assert!(!app_tsx.contains("performUpdate("));
+    assert!(!app_tsx.contains("downloadUpdateInBackground("));
 }
