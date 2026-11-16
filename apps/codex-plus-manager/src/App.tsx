@@ -10854,25 +10854,27 @@ function AboutScreen({
   diagnostics: DiagnosticsResult | null;
   actions: Actions;
 }) {
-  const version = overview?.current_version ?? "-";
+  const rawVersion = overview?.current_version?.trim();
+  const baseVersion = rawVersion && rawVersion !== "-" ? rawVersion : "2.6.10";
+  const aboutVersionTitle = `Codex++（capriMoon精简基于${baseVersion}）`;
   const openUrl = (url: string) => void actions.openExternalUrl(url);
   return (
     <>
       <div className="cx-set-group" id="app-settings-about">
         <CxSection>
           <CxCard>
-            <CxRow detail={t("本地 Codex 增强、管理工具和安装包维护")} icon={<img alt="" src={APP_LOGO_URL} />} title={`Codex++ ${version}`} />
+            <CxRow detail={t("本地 Codex 增强、管理工具和安装包维护")} icon={<img alt="" src={APP_LOGO_URL} />} title={aboutVersionTitle} />
             <CxRow title={t("Codex 版本")}>
               <span className="cx-set-value">{overview?.codex_version ?? t("未检测到")}</span>
             </CxRow>
-            <CxRow detail="github.com/BigPizzaV3/CodexPlusPlus" onClick={() => openUrl("https://github.com/BigPizzaV3/CodexPlusPlus")} title={t("项目地址")}>
+            <CxRow detail="github.com/caprimoon/CodexPlusPlus" onClick={() => openUrl("https://github.com/caprimoon/CodexPlusPlus")} title={t("项目地址")}>
               <ExternalLink aria-hidden="true" className="cx-set-chevron" />
             </CxRow>
           </CxCard>
         </CxSection>
         <CxSection title={t("反馈与社区")}>
           <CxCard>
-            <CxRow detail={t("在 GitHub Issues 报告问题或提建议")} icon={<Github />} onClick={() => openUrl("https://github.com/BigPizzaV3/CodexPlusPlus/issues")} title={t("反馈问题")}>
+            <CxRow detail={t("在 GitHub Issues 报告问题或提建议")} icon={<Github />} onClick={() => openUrl("https://github.com/caprimoon/CodexPlusPlus/issues")} title={t("反馈问题")}>
               <ExternalLink aria-hidden="true" className="cx-set-chevron" />
             </CxRow>
             <CxRow detail="discord.gg/y96kX7A76v" icon={<MessageCircle />} onClick={() => openUrl("https://discord.gg/y96kX7A76v")} title="Discord">
@@ -16641,11 +16643,7 @@ function AppSidebar({
   onExitSettings?: () => void;
 }) {
   const [settingsQuery, setSettingsQuery] = useState("");
-  // 收起了页面列表的 Agent：再点一次当前 Agent 收起 / 展开它下面的页面（#2913）。
-  const [collapsedAgent, setCollapsedAgent] = useState<string | null>(null);
-  const enhanceOnly = providersHidden(focus);
   const settingsMode = settingsModeRoutes.has(route);
-  const onGlobalPage = globalNavigationRoutes.includes(route);
   const languageLabel = getLanguage() === "en" ? t("切换到中文") : t("切换到英文");
   const themeLabel = theme === "dark" ? t("切换到浅色") : t("切换到深色");
   const openSettings = (entryRoute: Route, sections?: string[]) => (onOpenSettings ? onOpenSettings(entryRoute, sections) : onNavigate(entryRoute));
@@ -16719,15 +16717,30 @@ function AppSidebar({
     );
   }
 
-  // 主模式入口：万物皆拓展、MCP 与 Skills、会话。
+  // 仅管理 Codex 时把所有一级入口拉平为统一的扁平导航分组，取消原多 Agent 折叠层级。
   type SideEntry = { key: string; route: Route; label: string; icon: LucideIcon; match: Route[]; tour?: string };
-  const general: SideEntry[] = [
-    { key: "extensions", route: "userScripts" as Route, label: t("万物皆拓展"), icon: Blocks, match: ["userScripts" as Route], tour: "management" },
-    { key: "customize", route: "context", label: t("MCP 与 Skills"), icon: Network, match: customizeRoutes },
-    { key: "sessions", route: "sessions", label: t("会话"), icon: MessagesSquare, match: ["sessions"] },
-  ];
-  const shownGeneral = general.filter((item) => routeVisible(focus, item.route));
+  const routeEntry = (routeId: Route, overrides: Partial<SideEntry> = {}): SideEntry => {
+    const item = routes.find((candidate) => candidate.id === routeId)!;
+    return { key: routeId, route: routeId, label: item.label, icon: item.icon, match: [routeId], ...overrides };
+  };
+  const workspaceEntries: SideEntry[] = [
+    routeEntry("overview"),
+    routeEntry("relay", { match: ["relay", "relayEnvironment"] }),
+    routeEntry("context", { key: "customize", label: t("MCP 与 Skills"), match: customizeRoutes }),
+    routeEntry("sessions"),
+  ].filter((item) => routeVisible(focus, item.route));
+  const enhancementEntries: SideEntry[] = [
+    routeEntry("userScripts", { key: "extensions", icon: Blocks, tour: "management" }),
+    routeEntry("enhance"),
+    routeEntry("dreamSkin"),
+    routeEntry("pluginMarket"),
+    routeEntry("weixin"),
+    routeEntry("multiLaunch"),
+  ].filter((item) => routeVisible(focus, item.route));
   const extensionItems = (["management", "tools"] as ManagerNavGroup[]).flatMap((group) => managerNavPages(extensionPages, group));
+  const codexTool = tools.find((tool) => tool.id === "codex");
+  const codexSwitchable = codexTool?.switchable ?? true;
+  const codexName = codexTool?.name ?? "Codex";
   const renderEntry = (item: SideEntry) => {
     const Icon = item.icon;
     const selected = item.match.includes(route);
@@ -16766,6 +16779,14 @@ function AppSidebar({
     );
   };
 
+  const unattached = codexRun.running && codexRun.unattached;
+  const runButtonLabel = unattached ? t("重启并挂载") : codexRun.running ? t("停止 Codex") : t("启动 Codex");
+  const statusTone = unattached ? "warn" : codexRun.running ? "ok" : codexRun.unavailableReason ? "muted" : "direct";
+  const statusText = unattached ? t("未挂载") : codexRun.running ? t("运行中") : codexRun.unavailableReason ? t("未检测到") : t("未运行");
+  const codexDockTitle = codexTool
+    ? tf("{0}｜{1}｜{2} 个供应商", [codexName, codexTool.homeDir || t("未配置目录"), codexTool.relayCount])
+    : codexName;
+
   return (
     <aside className="side cx-side" data-mode="main">
       <div aria-hidden="true" className="cx-titlebar-drag" data-tauri-drag-region />
@@ -16776,94 +16797,13 @@ function AppSidebar({
       </button>
 
       <nav aria-label={t("主导航")} className="cx-side-nav">
-        <div className="cx-side-group">{shownGeneral.map(renderEntry)}</div>
+        <div className="cx-side-group">{workspaceEntries.map(renderEntry)}</div>
 
-        <div className="cx-side-group" data-tour="agents">
+        <div className="cx-side-group">
           <div className="cx-side-heading">
-            <span>{t("Agent 增强")}</span>
+            <span>{t("拓展与增强")}</span>
           </div>
-          {tools.map((tool) => {
-            const current = tool.id === activeTool && !onGlobalPage;
-            const expanded = current && collapsedAgent !== tool.id;
-            const displayName = tool.name;
-            const title = tool.switchable
-              ? tf("{0}｜{1}｜{2} 个供应商", [tool.name, tool.homeDir || t("未配置目录"), tool.relayCount])
-              : tf("{0}｜{1}｜供应商配置尚未接入", [tool.name, tool.homeDir || t("未配置目录")]);
-            const access = { tone: "direct", label: t("Codex 的供应商配置由 Codex++ 直接管理") };
-            return (
-              <Fragment key={tool.id}>
-              <div className={`cx-side-agent ${tool.id === "codex" && tool.switchable ? "has-run" : ""}`.trim()}>
-                <button
-                  aria-current={current ? "true" : undefined}
-                  aria-expanded={current ? expanded : undefined}
-                  aria-label={tool.switchable ? `${displayName} · ${access.label}` : `${displayName} · ${t("待接入")}`}
-                  className={`cx-side-item ${current ? "active" : ""} ${expanded && agentTabGroups(navigationSections, routeTool, tool.id).flatMap((entry) => visibleRoutes(focus, entry.routes)).length > 1 ? "has-subnav" : ""}`.trim()}
-                  disabled={!tool.switchable}
-                  onClick={() => {
-                    if (current) {
-                      setCollapsedAgent((value) => (value === tool.id ? null : tool.id));
-                      return;
-                    }
-                    setCollapsedAgent(null);
-                    onOpenAgent(tool.id);
-                  }}
-                  title={`${title}｜${access.label}`}
-                  type="button"
-                >
-                  <AgentGlyph agent={tool.id} className="cx-side-icon" />
-                  <span className="cx-side-label">{displayName}</span>
-                  {enhanceOnly ? null : <i aria-hidden="true" className="side-dot" data-tone={access.tone} />}
-                </button>
-                {tool.id === "codex" && tool.switchable ? (() => {
-                  const unattached = codexRun.running && codexRun.unattached;
-                  const label = unattached ? t("重启并挂载") : codexRun.running ? t("停止 Codex") : t("启动 Codex");
-                  return (
-                    <button
-                      aria-label={label}
-                      className="cx-side-run"
-                      data-running={codexRun.running}
-                      data-unattached={unattached}
-                      data-unavailable={!codexRun.running && Boolean(codexRun.unavailableReason)}
-                      disabled={codexRun.busy || (!codexRun.running && Boolean(codexRun.unavailableReason))}
-                      onClick={unattached ? codexRun.onRestart : codexRun.running ? codexRun.onStop : codexRun.onStart}
-                      title={codexRun.busy ? t("处理中…") : unattached ? t("Codex 不是经 Codex++ 启动的，增强脚本未挂载 · 点此重启并挂载") : codexRun.running ? t("停止 Codex") : codexRun.unavailableReason ?? t("启动 Codex")}
-                      type="button"
-                    >
-                      {codexRun.busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : unattached ? <RotateCcw aria-hidden="true" /> : codexRun.running ? <Square aria-hidden="true" /> : <Play aria-hidden="true" />}
-                    </button>
-                  );
-                })() : null}
-              </div>
-              {/* 当前 Agent 的页面：缩进列在它那一行下面。 */}
-{expanded ? (() => {
-            const pages = agentTabGroups(navigationSections, routeTool, activeTool)
-              .flatMap((entry) => visibleRoutes(focus, entry.routes));
-            if (pages.length < 2) return null;
-            return (
-              <div className="cx-side-subnav" role="group" aria-label={t("Agent 页面")}>
-                {pages.map((routeId) => {
-                  const item = routes.find((candidate) => candidate.id === routeId);
-                  if (!item) return null;
-                  const selected = route === routeId;
-                  return (
-                    <button
-                      aria-current={selected ? "page" : undefined}
-                      className={`cx-side-subitem ${selected ? "active" : ""}`}
-                      data-agent-page={routeId}
-                      key={routeId}
-                      onClick={() => onNavigate(routeId)}
-                      type="button"
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-})() : null}
-              </Fragment>
-            );
-          })}
+          {enhancementEntries.map(renderEntry)}
         </div>
 
         {extensionItems.length ? (
@@ -16874,9 +16814,44 @@ function AppSidebar({
         ) : null}
       </nav>
 
+      <div className="cx-side-codex-dock" data-running={codexRun.running} data-tour="agents" data-unattached={unattached}>
+        <button
+          aria-label={`${codexName} · ${statusText}`}
+          className="cx-side-codex-link"
+          disabled={!codexSwitchable}
+          onClick={() => onOpenAgent("codex", "overview")}
+          title={codexDockTitle}
+          type="button"
+        >
+          <AgentGlyph agent="codex" className="cx-side-icon" />
+          <span className="cx-side-codex-meta">
+            <span className="cx-side-codex-name">{codexName}</span>
+            <span className="cx-side-codex-status">
+              <i aria-hidden="true" className="side-dot" data-tone={statusTone} />
+              <span>{statusText}</span>
+            </span>
+          </span>
+        </button>
+        {codexSwitchable ? (
+          <button
+            aria-label={runButtonLabel}
+            className="cx-side-run"
+            data-running={codexRun.running}
+            data-unattached={unattached}
+            data-unavailable={!codexRun.running && Boolean(codexRun.unavailableReason)}
+            disabled={codexRun.busy || (!codexRun.running && Boolean(codexRun.unavailableReason))}
+            onClick={unattached ? codexRun.onRestart : codexRun.running ? codexRun.onStop : codexRun.onStart}
+            title={codexRun.busy ? t("处理中…") : unattached ? t("Codex 不是经 Codex++ 启动的，增强脚本未挂载 · 点此重启并挂载") : codexRun.running ? t("停止 Codex") : codexRun.unavailableReason ?? t("启动 Codex")}
+            type="button"
+          >
+            {codexRun.busy ? <Loader2 aria-hidden="true" className="animate-spin" /> : unattached ? <RotateCcw aria-hidden="true" /> : codexRun.running ? <Square aria-hidden="true" /> : <Play aria-hidden="true" />}
+          </button>
+        ) : null}
+      </div>
+
       <footer className="cx-side-foot">
         <img alt="" className="cx-side-logo" draggable={false} src={APP_LOGO_URL} />
-        <span className="cx-side-version">{version ? `Codex++ ${version}` : "Codex++"}</span>
+        <span className="cx-side-version" title={`Codex++（capriMoon精简基于${version || "2.6.10"}）`}>{version ? `Codex++ ${version}` : "Codex++"}</span>
         <button
           aria-label={t("设置")}
           className="cx-icon-button"

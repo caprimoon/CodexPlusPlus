@@ -26,14 +26,14 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "management",
     target: "management",
-    title: "万物皆拓展",
-    body: "Codex++ 的增强能力都以拓展开放：在这里启用内置拓展、安装社区拓展，或在 Codex 对话里说一句就造一个自己的。下面是 MCP、Skills 和会话。",
+    title: "拓展与增强",
+    body: "Codex++ 的增强能力都以拓展开放：在这里启用内置拓展、安装社区拓展，或在 Codex 对话里说一句就造一个自己的。",
   },
   {
     id: "agents",
     target: "agents",
-    title: "Codex 页面",
-    body: "点开 Codex 后它的页面列在下面：概览、连接与供应商、内置拓展、皮肤……右侧的播放键可以启动或停止 Codex。",
+    title: "Codex 控制条",
+    body: "概览、连接与供应商、MCP 与 Skills、会话与各增强页都在上方平铺直达；点这里可快速回到概览，右侧按钮随时启动、停止或挂载 Codex。",
   },
   {
     id: "palette",

@@ -37,27 +37,22 @@ test("精简版侧栏无网关/首页卡片，仅保留 Codex 并支持记忆页
   assert.match(functionSource("App"), /if \(!globalNavigationRoutes\.includes\(route\)\) lastAgentRoute\.set\(activeTool, route\);/);
 });
 
-test("侧栏仅显示 Codex 行与直连状态点；播放键常显并保留收起/展开能力", () => {
+test("侧栏改为统一扁平导航分组 + 底部 Codex 状态控制条，不再套「Agent 增强 → Codex」折叠子菜单", () => {
   const sidebar = functionSource("AppSidebar");
-  assert.match(sidebar, /const current = tool\.id === activeTool && !onGlobalPage;/);
-  assert.match(sidebar, /className=\{`cx-side-item \$\{current \? "active" : ""\} \$\{expanded && agentTabGroups/);
-  assert.match(sidebar, /className="cx-side-subnav" role="group" aria-label=\{t\("Agent 页面"\)\}/);
-  assert.match(sidebar, /\{expanded \? \(\(\) => \{\n\s*const pages = agentTabGroups\(navigationSections, routeTool, activeTool\)/);
-  assert.match(sidebar, /const expanded = current && collapsedAgent !== tool\.id;/);
-  assert.match(sidebar, /if \(current\) \{\n\s*setCollapsedAgent\(\(value\) => \(value === tool\.id \? null : tool\.id\)\);\n\s*return;/);
-  assert.match(sidebar, /aria-expanded=\{current \? expanded : undefined\}/);
-  assert.match(sidebar, /tone: "direct"/);
-  const access = sidebar.slice(sidebar.indexOf("const access ="), sidebar.indexOf("return (", sidebar.indexOf("const access =")));
-  assert.doesNotMatch(access, /running/);
-  assert.match(sidebar, /\{tool\.id === "codex" && tool\.switchable \? \(\(\) => \{/);
-  assert.match(sidebar, /const label = unattached \? t\("重启并挂载"\) : codexRun\.running \? t\("停止 Codex"\) : t\("启动 Codex"\);/);
-  assert.match(sidebar, /aria-label=\{label\}/);
+  assert.doesNotMatch(sidebar, /Agent 增强|cx-side-subnav|collapsedAgent|Agent 页面/);
+  assert.match(sidebar, /const workspaceEntries: SideEntry\[\] = \[/);
+  assert.match(sidebar, /const enhancementEntries: SideEntry\[\] = \[/);
+  assert.match(sidebar, /className="cx-side-codex-dock"/);
+  assert.match(sidebar, /data-tour="agents"/);
+  assert.match(sidebar, /onClick=\{\(\) => onOpenAgent\("codex", "overview"\)\}/);
+  assert.match(sidebar, /const statusTone = unattached \? "warn" : codexRun\.running \? "ok" : codexRun\.unavailableReason \? "muted" : "direct";/);
+  assert.match(sidebar, /const runButtonLabel = unattached \? t\("重启并挂载"\) : codexRun\.running \? t\("停止 Codex"\) : t\("启动 Codex"\);/);
+  assert.match(sidebar, /aria-label=\{runButtonLabel\}/);
   assert.match(sidebar, /onClick=\{unattached \? codexRun\.onRestart : codexRun\.running \? codexRun\.onStop : codexRun\.onStart\}/);
   assert.doesNotMatch(sidebar, /tool\.id === "claude"|claudeRun/);
   assert.match(text, /const stoppedByUser = result\.latest_launch\?\.phase === "user_stopped";/);
   const lib = readSource("../src-tauri/src/lib.rs");
   assert.match(lib, /commands::stop_codex_plus,/);
-  assert.match(sidebar, /\.flatMap\(\(entry\) => visibleRoutes\(focus, entry\.routes\)\);\n\s*if \(pages\.length < 2\) return null;/);
   const sections = text.slice(text.indexOf("const navigationSections"), text.indexOf("const globalNavigationRoutes"));
   assert.match(sections, /\{ id: "overview", routes: \["overview", "relay"\] \}/);
   for (const id of ["overview", "enhance"]) assert.match(sections, new RegExp(`id: "${id}"`));
@@ -99,7 +94,7 @@ test("启动 Codex 一眼可见：Codex 页面顶栏最右侧主按钮与侧栏�
     assert.ok(codexRoutes.includes(id), `${id} 属于 Codex，顶栏要显示启动按钮`);
   }
   const sidebar = functionSource("AppSidebar");
-  assert.match(sidebar, /tool\.id === "codex" && tool\.switchable \? "has-run" : ""/);
+  assert.match(sidebar, /className="cx-side-codex-dock"/);
   assert.match(sidebar, /disabled=\{codexRun\.busy \|\| \(!codexRun\.running && Boolean\(codexRun\.unavailableReason\)\)\}/);
   assert.match(entry, /const codexRun = \{\n\s*running: codexAppRunning,\n\s*unattached: Boolean\(overview\?\.runtime_health\?\.codex_unattached\),\n\s*busy: launchPending,\n\s*unavailableReason: codexLaunch\.unavailableReason,\n\s*onStart: codexLaunch\.onLaunch,/);
   assert.match(entry, /codexRun=\{codexRun\}/);
@@ -148,16 +143,17 @@ test("紧凑密度层：管理页不再套外框，覆盖规则带 .shell 前缀
   for (const selector of selectors) assert.match(selector, /^\.shell /, selector);
 });
 
-test("只保留 Codex 全局管理入口（万物皆拓展、MCP 与 Skills、会话），去掉用量与聚合网关分组", () => {
+test("扁平侧栏按核心工作区（概览、连接与供应商、MCP 与 Skills、会话）与「拓展与增强」分组，无网关入口", () => {
   assert.match(text, /id: "userScripts", get label\(\) \{ return t\("万物皆拓展"\); \}/);
   assert.match(text, /const managementNavigationRoutes: Route\[\] = \["userScripts", "sessions", "context", "skills"\]/);
   const sections = text.slice(text.indexOf("const navigationSections"), text.indexOf("const globalNavigationRoutes"));
   assert.doesNotMatch(sections, /"requestLog"|"sessions"|"context"|"skills"/);
   const sidebar = functionSource("AppSidebar");
-  assert.match(sidebar, /\{ key: "extensions", route: "userScripts" as Route, label: t\("万物皆拓展"\)/);
-  assert.ok(sidebar.indexOf('key: "extensions"') < sidebar.indexOf('key: "customize"'), "万物皆拓展排在第一个");
+  assert.match(sidebar, /routeEntry\("overview"\)/);
+  assert.match(sidebar, /routeEntry\("userScripts", \{ key: "extensions", icon: Blocks, tour: "management" \}\)/);
+  assert.ok(sidebar.indexOf('routeEntry("overview")') < sidebar.indexOf('key: "customize"'), "工作区分组排在拓展与增强之前");
   assert.match(sidebar, /match: customizeRoutes/);
-  assert.doesNotMatch(sidebar, /"聚合网关"|gatewayEntries/);
+  assert.doesNotMatch(sidebar, /"聚合网关"|gatewayEntries|Agent 增强/);
   assert.match(text, /const customizeRoutes: Route\[\] = \["context", "skills"\];/);
   assert.doesNotMatch(text, /"gatewaySessions"/);
   const entry = functionSource("App");
@@ -375,9 +371,11 @@ test("首次导览可直接从通用设置重开，已移除模式问卷、入�
   }
 });
 
-test("关于页与设置导航不再渲染更新区块与配置体检", () => {
+test("关于页与设置导航不再渲染更新区块与配置体检，并展示定制版本与 fork 仓库地址", () => {
   const about = functionSource("AboutScreen");
-  assert.doesNotMatch(about, /app-settings-update|checkUpdate|performUpdate/);
+  assert.doesNotMatch(about, /app-settings-update|checkUpdate|performUpdate|BigPizzaV3\/CodexPlusPlus/);
+  assert.match(about, /Codex\+\+（capriMoon精简基于\$\{baseVersion\}）/);
+  assert.match(about, /github\.com\/caprimoon\/CodexPlusPlus/);
   assert.doesNotMatch(functionSource("GlobalSettingsScreen"), /<ConfigDoctorPanel\b|onOpenAgentFocus|使用模式/);
 });
 

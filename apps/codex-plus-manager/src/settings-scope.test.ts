@@ -76,8 +76,8 @@ test("精简版仅管理 Codex：providerRoutes 仅保留 Codex 连接与多开�
   assert.match(helpers, /const providerRoutes = new Set<Route>\(\["relay", "relayEnvironment", "multiLaunch"\]\);/);
   assert.match(helpers, /providersHidden\(focus\) && providerRoutes\.has\(routeId\)/);
   const sidebar = functionSource("AppSidebar");
-  assert.doesNotMatch(sidebar, /shownGateway|gatewayEntries|<AgentFocusDialog/);
-  assert.match(sidebar, /\.flatMap\(\(entry\) => visibleRoutes\(focus, entry\.routes\)\)/);
+  assert.doesNotMatch(sidebar, /shownGateway|gatewayEntries|<AgentFocusDialog|Agent 增强/);
+  assert.match(sidebar, /\.filter\(\(item\) => routeVisible\(focus, item\.route\)\)/);
   assert.match(text, /if \(!item \|\| !routeVisible\(agentFocus, routeId\)\) return null;/);
   assert.match(text, /if \(!routeVisible\(agentFocus, route\)\) \{[\s\S]{0,80}void navigate\("overview"\);/);
 });
