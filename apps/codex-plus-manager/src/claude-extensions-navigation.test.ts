@@ -109,7 +109,7 @@ test("拓展管理仅向 Codex 开放", () => {
   for (const tool of ["claude", "grok", "opencode", "unknown"]) assert.equal(pageVisibleForTool(page, tool), false);
 });
 
-test("万物皆拓展是侧栏一级入口，点击跳转 userScripts；其他 Agent 不再展示", () => {
+test("外部拓展是侧栏一级入口，点击跳转 userScripts；其他 Agent 不再展示", () => {
   const extensions = (sidebar: Element) => elements(sidebar).find((node) => node.props["data-nav"] === "extensions");
   const h = harness();
   const entry = extensions(h.sidebar("codex", "codex"));
@@ -135,7 +135,7 @@ test("Codex 页面与概览保留顶部启动 / 重启按钮", () => {
   assert.match(text, /onRestart: \(\) => void actions\.restart\(\)/);
 });
 
-test("tools 限定的页面随侧栏 Agent 过滤，万物皆拓展除外", () => {
+test("tools 限定的页面随侧栏 Agent 过滤，外部拓展除外", () => {
   const switchTool = declaration("switchTool").getText(app);
   assert.match(switchTool, /if \(!pageVisibleForTool\(currentRoute, toolId\)\)/);
   assert.match(switchTool, /if \(destination\) await navigate\(destination\);\s*else if \(globalNavigationRoutes\.includes\(route\)\) await navigate\("overview"\)/);
@@ -234,7 +234,7 @@ function extensionScreenProps(h: ReturnType<typeof extensionHarness>, host: Exte
   };
 }
 
-test("万物皆拓展固定绑定 Codex 宿主，不显示 Claude 宿主切换按钮", () => {
+test("外部拓展固定绑定 Codex 宿主，不显示 Claude 宿主切换按钮", () => {
   assert.match(text, /<UserScriptsScreen host="codex"/);
   const h = extensionHarness();
   const props = extensionScreenProps(h, "codex");
@@ -244,7 +244,7 @@ test("万物皆拓展固定绑定 Codex 宿主，不显示 Claude 宿主切换�
   assert.equal(controls.length, 0);
 });
 
-test("万物皆拓展保留社区 / 本地 / 我发布的，已去掉精选包与 DSH 插件", () => {
+test("外部拓展保留社区 / 本地 / 我发布的，已去掉精选包与 DSH 插件", () => {
   const h = extensionHarness();
   const props = extensionScreenProps(h, "codex");
   let nodes = elements(h.render("UserScriptsScreen", props));

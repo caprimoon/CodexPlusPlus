@@ -144,7 +144,7 @@ test("紧凑密度层：管理页不再套外框，覆盖规则带 .shell 前缀
 });
 
 test("扁平侧栏按核心工作区（概览、连接与供应商、MCP 与 Skills、会话）与「拓展与增强」分组，无网关入口", () => {
-  assert.match(text, /id: "userScripts", get label\(\) \{ return t\("万物皆拓展"\); \}/);
+  assert.match(text, /id: "userScripts", get label\(\) \{ return t\("外部拓展"\); \}/);
   assert.match(text, /const managementNavigationRoutes: Route\[\] = \["userScripts", "sessions", "context", "skills"\]/);
   const sections = text.slice(text.indexOf("const navigationSections"), text.indexOf("const globalNavigationRoutes"));
   assert.doesNotMatch(sections, /"requestLog"|"sessions"|"context"|"skills"/);

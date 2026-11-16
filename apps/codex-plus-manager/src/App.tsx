@@ -1450,8 +1450,8 @@ const routes: Array<{ id: Route; label: string; icon: LucideIcon; badge?: string
   { id: "weixin", get label() { return t("微信连接"); }, icon: ScanLine, tool: "codex" },
   { id: "enhance", get label() { return t("内置拓展"); }, icon: Hammer, tool: "codex" },
   { id: "dreamSkin", get label() { return t("皮肤管理"); }, icon: Palette, tool: "codex" },
-  // 拓展管理入口：仅保留 Codex。
-  { id: "userScripts", get label() { return t("万物皆拓展"); }, icon: FileCode2, tool: "codex", tools: ["codex"] },
+  // 拓展管理入口：仅保留 Codex，命名为「外部拓展」以与「内置拓展」呼应。
+  { id: "userScripts", get label() { return t("外部拓展"); }, icon: FileCode2, tool: "codex", tools: ["codex"] },
   { id: "pluginMarket", get label() { return t("插件市场"); }, icon: Store, tool: "codex" },
   // 旧入口：并进了首页（拓展深链仍可能用到这条路由）。
   { id: "recommendations", get label() { return t("推荐内容"); }, icon: ExternalLink },
@@ -10484,7 +10484,7 @@ function HomeScreen({
   const open = (ad: AdItem) => void actions.openExternalUrl(ad.url);
 
   const shortcuts: Array<{ route: Route; label: string; detail: string; icon: LucideIcon }> = [
-    { route: "userScripts", label: t("万物皆拓展"), detail: t("给 Codex、Claude 加功能的脚本"), icon: Blocks },
+    { route: "userScripts", label: t("外部拓展"), detail: t("给 Codex、Claude 加功能的脚本"), icon: Blocks },
     { route: "context", label: t("MCP 与 Skills"), detail: t("一处管理所有 Agent 的 MCP 和 Skill"), icon: Network },
     { route: "sessions", label: t("会话"), detail: t("找回、继续各 Agent 的本地会话"), icon: MessagesSquare },
     { route: "gatewayProviders", label: t("供应商池"), detail: t("添加 Key，一个 Agent 同时用多家"), icon: Server },
@@ -16949,7 +16949,7 @@ const extensionCapabilities = [
 
 function ExtensionsHero() {
   return (
-    <section className="ext-hero" aria-label={t("万物皆拓展")}>
+    <section className="ext-hero" aria-label={t("外部拓展")}>
       <p className="ext-hero-lead" title={`${t("Codex++ 构建于万物皆拓展的架构之上：界面、命令、模型能用的工具、agent 循环的钩子、发往模型的请求与回复，都能由拓展接管。在 Codex 对话里说一句，就能造一个属于自己的拓展。")}\n${extensionCapabilities.map((label) => t(label)).join(" · ")}`}>
         {t("界面、命令、工具、钩子、模型请求都能由拓展接管；在 Codex 对话里说一句就能造一个。")}
       </p>
@@ -17269,7 +17269,7 @@ function routeSubtitle(route: Route, soloAgent: string | null = null) {
     weixin: t("通过个人微信连接本机 Codex 会话"),
     enhance: t("管理常用功能、语音输入与下一步建议。"),
     dreamSkin: t("Codex-Dream-Skin 风格主题和换图"),
-    userScripts: t("万物皆拓展：社区、本地与自定义拓展"),
+    userScripts: t("外部拓展：社区、本地与自定义拓展"),
     pluginMarket: t("检索插件，按需下载并安装到 Codex"),
     recommendations: t("来自 Codex++ 广告源的推荐，点卡片在浏览器里打开"),
     agentCache: t("扫描 Codex 与 Codex++ 的已知缓存目录，由你选择清理项目。"),

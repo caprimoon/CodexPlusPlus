@@ -268,7 +268,7 @@ export function OnboardingSetup({
                   <p>{enhancementReady ? t("应用与增强配置已就绪。") : t("确认目标应用已安装，并启用所需增强或拓展。")}</p>
                   <div className="setup-actions">
                     <Button onClick={() => onNavigate(agentId === "claude" ? "claude" : "enhance", agentId)} size="sm" variant="secondary"><Settings2 size={13} />{t("增强设置")}</Button>
-                    <Button onClick={() => onNavigate("userScripts", agentId)} size="sm" variant="ghost">{t("万物皆拓展")}<ArrowRight size={13} /></Button>
+                    <Button onClick={() => onNavigate("userScripts", agentId)} size="sm" variant="ghost">{t("外部拓展")}<ArrowRight size={13} /></Button>
                   </div>
                 </>
               ) : (

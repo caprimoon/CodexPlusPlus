@@ -994,9 +994,10 @@
   gap: 8px;
 }
 
-/* 主按钮：Cursor 的白底黑字胶囊（浅色主题下反过来）。 */
+/* 主按钮：Cursor 的白底黑字胶囊（浅色主题下反过来）；顶栏「启动 / 重启 Codex」统一沿用同一套胶囊规格。 */
 :root .shell .cx-primary,
-:root .shell .cx-toolbar-actions > .mg-primary {
+:root .shell .cx-toolbar-actions > .mg-primary,
+:root .shell .topbar-codex-launch .codex-launch-button {
   display: inline-flex;
   height: 34px;
   align-items: center;
@@ -1006,17 +1007,20 @@
   border-radius: 999px;
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
+  box-shadow: none;
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
 
-:root .shell .cx-primary:hover:not(:disabled) {
+:root .shell .cx-primary:hover:not(:disabled),
+:root .shell .topbar-codex-launch .codex-launch-button:hover:not(:disabled) {
   background: hsl(var(--primary) / 0.88);
 }
 
-:root .shell .cx-primary:disabled {
+:root .shell .cx-primary:disabled,
+:root .shell .topbar-codex-launch .codex-launch-button:disabled {
   /* 禁用时不再是半透明的白块（深色下一大坨灰）：淡灰底 + 灰字。 */
   opacity: 1;
   background: hsl(var(--muted));
@@ -1025,7 +1029,8 @@
   cursor: default;
 }
 
-:root .shell .cx-primary svg {
+:root .shell .cx-primary svg,
+:root .shell .topbar-codex-launch .codex-launch-button svg {
   width: 15px;
   height: 15px;
 }

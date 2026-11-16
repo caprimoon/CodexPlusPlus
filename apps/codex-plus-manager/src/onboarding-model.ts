@@ -16,7 +16,7 @@ export type TourStep = {
 export const TOUR_VERSION = 1;
 export const TOUR_STORAGE_KEY = "codex-plus-plus.onboarding";
 
-// 顺序跟着侧栏从上往下走：万物皆拓展 → Codex → 搜索 → 设置。
+// 顺序跟着侧栏从上往下走：外部拓展 → Codex → 搜索 → 设置。
 export const TOUR_STEPS: TourStep[] = [
   {
     id: "welcome",
@@ -26,8 +26,8 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "management",
     target: "management",
-    title: "拓展与增强",
-    body: "Codex++ 的增强能力都以拓展开放：在这里启用内置拓展、安装社区拓展，或在 Codex 对话里说一句就造一个自己的。",
+    title: "外部拓展",
+    body: "在这里启用社区拓展、管理本地拓展，或在 Codex 对话里说一句就造一个自己的；下方还可以管理内置拓展与皮肤。",
   },
   {
     id: "agents",
