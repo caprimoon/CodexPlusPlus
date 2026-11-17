@@ -8313,12 +8313,8 @@
     setCodexPlusSidebarNavActive(active, codexPlusActiveEntry() || "home");
   }
 
-  function removeCodexPlusBuiltinRailNavigation() {
-    [codexPlusRailNavId, codexPlusRailExtensionsId, "codex-plus-rail-sponsor", codexPlusRailPluginMarketId].forEach((id) => document.getElementById(id)?.remove());
-  }
-
   function removeCodexPlusRailNavigation() {
-    removeCodexPlusBuiltinRailNavigation();
+    [codexPlusRailNavId, codexPlusRailExtensionsId, "codex-plus-rail-sponsor", codexPlusRailPluginMarketId].forEach((id) => document.getElementById(id)?.remove());
   }
 
   function detachCodexPlusSidebarNavigation() {
@@ -8547,7 +8543,7 @@
     document.querySelectorAll(`#${codexPlusMenuId}, [data-codex-plus-menu="true"]`).forEach((node) => node.remove());
     const rail = document.querySelector(codexPlusRailSelector);
     if (!rail) return false;
-    removeCodexPlusBuiltinRailNavigation();
+    removeCodexPlusRailNavigation();
 
     if (rail.dataset.codexPlusRailNavigationListener !== "true") {
       rail.dataset.codexPlusRailNavigationListener = "true";

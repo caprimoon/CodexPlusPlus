@@ -973,8 +973,8 @@ describe("renderer injection header compatibility", () => {
 
     assert.match(renderer, /codexPlusRailSelector\s*=\s*"nav\[data-app-navigation-rail\]"/);
     assert.match(renderer, /function installCodexPlusRailNavigation\(\)/);
-    assert.match(renderer, /function removeCodexPlusBuiltinRailNavigation\(\)/);
-    assert.match(renderer, /removeCodexPlusBuiltinRailNavigation\(\);/);
+    assert.match(renderer, /function removeCodexPlusRailNavigation\(\)/);
+    assert.match(renderer, /removeCodexPlusRailNavigation\(\);/);
     // 拓展通过 ctx.registerNavEntry 注册的左侧图标栏入口（如动态壁纸）仍由 createCodexPlusRailButton 构建并挂载。
     assert.match(renderer, /codexPlusRailDestinationSelector\s*=\s*"\[data-sidebar-destination\]"/);
     assert.match(renderer, /button\.removeAttribute\("data-sidebar-destination"\)/);

@@ -574,7 +574,7 @@ it("inserts Codex++ group above 个人 in Settings, preserves extension rail ent
     const codexPlusExtensionConstants = { extensionAttribute: "data-codex-plus-ext" };
     ${functionSource("setCodexPlusSidebarNavActive")}
     ${functionSource("syncCodexPlusSettingsNativeSelection")}
-    ${functionSource("removeCodexPlusBuiltinRailNavigation")}
+    ${functionSource("removeCodexPlusRailNavigation")}
     ${functionSource("installCodexPlusRailNavigation")}
     ${functionSource("isNativeSettingsNavItemSelected")}
     ${functionSource("codexPlusElementHasVisibleBackground")}
