@@ -7257,20 +7257,28 @@
     const rail = document.querySelector(codexPlusRailSelector);
     const railRect = rail?.getBoundingClientRect?.();
     const embeddedAttr = typeof codexPlusSettingsEmbeddedAttr !== "undefined" ? codexPlusSettingsEmbeddedAttr : "data-codex-plus-settings-embedded";
+    const settingsSectionId = typeof codexPlusSettingsSectionId !== "undefined" ? codexPlusSettingsSectionId : "codex-plus-settings-section";
     const settingsEmbedded = overlay?.getAttribute?.(embeddedAttr) === "true";
     const settingsCtx = settingsEmbedded && typeof codexPlusSettingsContext === "function"
       ? codexPlusSettingsContext()
       : null;
     if (settingsEmbedded && !settingsCtx) {
-      closeCodexPlusPage();
+      if (!document.getElementById?.(settingsSectionId)?.isConnected) {
+        closeCodexPlusPage();
+      }
       return;
     }
     const paneRect = settingsCtx?.contentPane?.getBoundingClientRect?.();
+    const settingsSidebarRect = settingsCtx?.sidebar?.getBoundingClientRect?.();
+    const maxSettingsSidebarWidth = (window.innerWidth || 1000) * 0.55;
+    const settingsSidebarRight = settingsSidebarRect && settingsSidebarRect.width > 0 && settingsSidebarRect.width <= maxSettingsSidebarWidth
+      ? Math.max(0, settingsSidebarRect.right)
+      : 0;
     // 设置内嵌模式只覆盖设置页右侧内容区（保留左侧设置菜单）；全区模式从图标栏右边界开始铺满。
     const left = settingsEmbedded
       ? (paneRect && paneRect.width > 0
-        ? Math.max(0, paneRect.left)
-        : (settingsCtx?.sidebar?.getBoundingClientRect?.().right
+        ? Math.max(settingsSidebarRight, paneRect.left)
+        : (settingsSidebarRight
           || (railRect && railRect.width > 0 ? Math.max(0, railRect.right) : 0)))
       : (railRect && railRect.width > 0
         ? Math.max(0, railRect.right)
@@ -7322,12 +7330,15 @@
     const pageSurface = (settingsEmbedded && settingsCtx?.contentPane)
       || document.querySelector('[class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"]');
     const pageSurfaceStyle = pageSurface ? getComputedStyle(pageSurface) : null;
+    const outerSurface = document.querySelector('[class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"]');
+    const outerSurfaceStyle = outerSurface && outerSurface !== pageSurface ? getComputedStyle(outerSurface) : null;
     const mainSurfaceStyle = (() => {
       const main = document.querySelector("main[data-app-shell-main-surface]");
       return main ? getComputedStyle(main) : null;
     })();
     const radius =
       parseFloat(pageSurfaceStyle?.borderTopLeftRadius || "") ||
+      parseFloat(outerSurfaceStyle?.borderTopLeftRadius || "") ||
       parseFloat(mainSurfaceStyle?.getPropertyValue("--app-shell-main-surface-clip-end-radius") || "") ||
       0;
     const layoutRadius = zoom === 1 ? radius : radius / zoom;
@@ -8272,7 +8283,9 @@
       navigation.dataset.codexPlusSidebarNavigationListener = "true";
       navigation.addEventListener("click", (event) => {
         const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-        if (target?.closest(`#${codexPlusSidebarNavId}`)) return;
+        const settingsSectionId = typeof codexPlusSettingsSectionId !== "undefined" ? codexPlusSettingsSectionId : "codex-plus-settings-section";
+        const settingsNavAttr = typeof codexPlusSettingsNavAttr !== "undefined" ? codexPlusSettingsNavAttr : "data-codex-plus-settings-entry";
+        if (target?.closest(`#${codexPlusSidebarNavId}, #${settingsSectionId}, [${settingsNavAttr}]`)) return;
         if (target?.closest("button, a")) closeCodexPlusPageAfterNativeNavigation();
       }, true);
     }
@@ -8650,40 +8663,64 @@
     const labelClass = labelNode?.className || "";
     const svgClass = unselectedItem?.querySelector?.("svg")?.getAttribute?.("class") || "";
 
+    const maxSidebarWidth = (window.innerWidth || 1000) * 0.55;
     let sidebar = list;
     let contentPane = null;
-    while (sidebar && sidebar !== document.body && sidebar !== document.documentElement) {
-      const parent = sidebar.parentElement;
-      if (!parent) break;
+    let cur = list;
+    while (cur && cur !== document.body && cur !== document.documentElement) {
+      const curRect = cur.getBoundingClientRect?.();
+      if (curRect && curRect.width > 0) {
+        if (curRect.width <= maxSidebarWidth) {
+          sidebar = cur;
+        } else {
+          break;
+        }
+      }
+      const parent = cur.parentElement;
+      if (!parent || parent === document.body || parent === document.documentElement) break;
       const sidebarRect = sidebar.getBoundingClientRect?.();
-      if (sidebarRect && sidebarRect.width > 0 && sidebarRect.width <= window.innerWidth * 0.55) {
+      if (sidebarRect && sidebarRect.width > 0 && sidebarRect.width <= maxSidebarWidth) {
         const rightSibling = Array.from(parent.children || []).find((child) => {
-          if (child === sidebar || !visibleElement(child)) return false;
+          if (child === cur || child.contains?.(list) || !visibleElement(child)) return false;
           const rect = child.getBoundingClientRect?.();
-          return Boolean(rect && rect.width >= 200 && rect.height >= 200 && rect.left >= sidebarRect.right - 16);
+          return Boolean(
+            rect
+            && rect.width >= 200
+            && rect.height >= 200
+            && rect.right >= sidebarRect.right + 160
+          );
         }) || null;
         if (rightSibling) {
-          const surface = rightSibling.matches?.('[class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"]')
+          const surface = rightSibling.matches?.('[data-app-shell-page-surface="true"], [class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"]')
             ? rightSibling
-            : rightSibling.querySelector?.('[class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"]')
+            : rightSibling.querySelector?.('[data-app-shell-page-surface="true"], [class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"]')
               || rightSibling.querySelector?.("main")
               || rightSibling;
           const surfaceRect = surface?.getBoundingClientRect?.();
-          contentPane = surface && surfaceRect && surfaceRect.left >= sidebarRect.right - 16
+          contentPane = surface && surfaceRect && surfaceRect.width >= 200 && surfaceRect.height >= 200 && surfaceRect.right >= sidebarRect.right + 160
             ? surface
             : rightSibling;
           break;
         }
       }
-      sidebar = parent;
+      cur = parent;
     }
     if (!contentPane) {
-      const listRect = list.getBoundingClientRect?.();
-      const candidate = document.querySelector('[class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"], main[data-app-shell-main-surface]');
-      const candRect = candidate?.getBoundingClientRect?.();
-      if (candidate && candRect && listRect && candRect.left >= listRect.right - 16) {
-        contentPane = candidate;
-      }
+      const sidebarRect = sidebar?.getBoundingClientRect?.();
+      const candidates = Array.from(
+        document.querySelectorAll?.(
+          '[data-app-shell-page-surface="true"], [class*="_PageSurface_"], [class^="PageSurface-"], [class*=" PageSurface-"], main[data-app-shell-main-surface], main',
+        ) || [],
+      );
+      contentPane = candidates.find((node) => {
+        const rect = node?.getBoundingClientRect?.();
+        return Boolean(
+          rect
+          && rect.width >= 200
+          && rect.height >= 200
+          && (!sidebarRect || !sidebarRect.width || rect.right >= sidebarRect.right + 160)
+        );
+      }) || null;
     }
     const searchInput = sidebar?.querySelector?.('input[type="search"], input[type="text"], input:not([type])') || null;
     return {

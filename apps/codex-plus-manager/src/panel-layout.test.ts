@@ -438,12 +438,32 @@ it("inserts Codex++ group above 个人 in Settings, preserves extension rail ent
         if (part === 'input[type="text"]') return this.tagName === "INPUT" && this.type === "text";
         if (part === "input:not([type])") return this.tagName === "INPUT" && !this.hasAttribute("type");
         if (part === "[data-settings-panel-slug]") return this.hasAttribute("data-settings-panel-slug");
+        const tagPrefixMatch = part.match(/^([a-z]+)(\[.*\])$/i);
+        if (tagPrefixMatch) {
+          return this.tagName === tagPrefixMatch[1].toUpperCase() && this.matches(tagPrefixMatch[2]);
+        }
+        if (/^[a-z]+$/i.test(part)) return this.tagName === part.toUpperCase();
         if (part.startsWith("[") && part.endsWith("]")) {
-          const eq = part.indexOf("=");
-          if (eq === -1) return this.hasAttribute(part.slice(1, -1));
-          const attr = part.slice(1, eq);
-          const val = part.slice(eq + 1, -1).replace(/^"|"$/g, "");
-          return this.getAttribute(attr) === val;
+          const inner = part.slice(1, -1);
+          const containsIdx = inner.indexOf("*=");
+          if (containsIdx !== -1) {
+            const attr = inner.slice(0, containsIdx);
+            const val = inner.slice(containsIdx + 2).replace(/^"|"$/g, "");
+            const actual = attr === "class" ? this.className : (this.getAttribute(attr) ?? "");
+            return actual.includes(val);
+          }
+          const prefixIdx = inner.indexOf("^=");
+          if (prefixIdx !== -1) {
+            const attr = inner.slice(0, prefixIdx);
+            const val = inner.slice(prefixIdx + 2).replace(/^"|"$/g, "");
+            const actual = attr === "class" ? this.className : (this.getAttribute(attr) ?? "");
+            return actual.startsWith(val);
+          }
+          const eq = inner.indexOf("=");
+          if (eq === -1) return this.hasAttribute(inner);
+          const attr = inner.slice(0, eq);
+          const val = inner.slice(eq + 1).replace(/^"|"$/g, "");
+          return (attr === "class" ? this.className : this.getAttribute(attr)) === val;
         }
         return false;
       });
@@ -652,4 +672,128 @@ it("inserts Codex++ group above 个人 in Settings, preserves extension rail ent
   assert.equal(section.hidden, false);
   assert.equal(buttons[0].hidden, false);
   assert.equal(buttons[1].hidden, false);
+});
+
+it("keeps narrow Settings sidebar when outer PageSurface wraps both columns or no rightSibling matches", () => {
+  class MiniEl {
+    tagName: string;
+    children: MiniEl[] = [];
+    parentElement: MiniEl | null = null;
+    attributes = new Map<string, string>();
+    className = "";
+    rect = { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 };
+    constructor(tagName: string, attrs: Record<string, string> = {}, className = "", rect = { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 }) {
+      this.tagName = tagName.toUpperCase();
+      this.className = className;
+      this.rect = rect;
+      Object.entries(attrs).forEach(([k, v]) => this.attributes.set(k, v));
+    }
+    appendChild(child: MiniEl) { child.parentElement = this; this.children.push(child); return child; }
+    get previousElementSibling(): MiniEl | null {
+      if (!this.parentElement) return null;
+      const idx = this.parentElement.children.indexOf(this);
+      return idx > 0 ? this.parentElement.children[idx - 1] : null;
+    }
+    getAttribute(name: string) { return this.attributes.get(name) ?? null; }
+    hasAttribute(name: string) { return this.attributes.has(name); }
+    contains(node: MiniEl | null) {
+      let cur: MiniEl | null = node;
+      while (cur) { if (cur === this) return true; cur = cur.parentElement; }
+      return false;
+    }
+    getBoundingClientRect() { return this.rect; }
+    matches(selector: string): boolean {
+      return selector.split(",").map((s) => s.trim()).some((part) => {
+        if (part === "[data-settings-panel-slug]") return this.hasAttribute("data-settings-panel-slug");
+        if (part === "[data-app-shell-page-surface=\"true\"]") return this.getAttribute("data-app-shell-page-surface") === "true";
+        if (part === "[class*=\"_PageSurface_\"]") return this.className.includes("_PageSurface_");
+        if (part === "[class^=\"PageSurface-\"]") return this.className.startsWith("PageSurface-");
+        if (part === "[class*=\" PageSurface-\"]") return this.className.includes(" PageSurface-");
+        if (part === "main[data-app-shell-main-surface]") return this.tagName === "MAIN" && this.hasAttribute("data-app-shell-main-surface");
+        if (part === "main") return this.tagName === "MAIN";
+        if (part === "nav[data-app-navigation-rail]") return this.tagName === "NAV" && this.hasAttribute("data-app-navigation-rail");
+        if (part === "[data-app-shell-workspace-row]") return this.hasAttribute("data-app-shell-workspace-row");
+        return false;
+      });
+    }
+    querySelectorAll(selector: string): MiniEl[] {
+      const out: MiniEl[] = [];
+      const walk = (n: MiniEl) => { for (const c of n.children) { if (c.matches(selector)) out.push(c); walk(c); } };
+      walk(this);
+      return out;
+    }
+    querySelector(selector: string): MiniEl | null { return this.querySelectorAll(selector)[0] ?? null; }
+  }
+
+  const body = new MiniEl("body", {}, "", { left: 0, top: 0, width: 1000, height: 800, right: 1000, bottom: 800 });
+  const row = body.appendChild(new MiniEl("div", { "data-app-shell-workspace-row": "true" }, "", { left: 52, top: 44, width: 944, height: 752, right: 996, bottom: 796 }));
+  const pageSurface = row.appendChild(new MiniEl("div", { "data-app-shell-page-surface": "true" }, "_PageSurface_abc", { left: 52, top: 44, width: 944, height: 752, right: 996, bottom: 796 }));
+  const settingsGrid = pageSurface.appendChild(new MiniEl("div", {}, "settings-grid", { left: 52, top: 44, width: 944, height: 752, right: 996, bottom: 796 }));
+  const settingsSidebar = settingsGrid.appendChild(new MiniEl("aside", {}, "settings-sidebar", { left: 52, top: 44, width: 193, height: 752, right: 245, bottom: 796 }));
+  const list = settingsSidebar.appendChild(new MiniEl("div", {}, "settings-list", { left: 60, top: 100, width: 177, height: 500, right: 237, bottom: 600 }));
+  list.appendChild(new MiniEl("button", { "data-settings-panel-slug": "general" }, "", { left: 60, top: 100, width: 177, height: 32, right: 237, bottom: 132 }));
+  // Right scroll wrapper overlaps starting at x=52 (just like tucked main surfaces) so old `rect.left >= sidebarRect.right - 16` failed.
+  const overlappingRightPane = settingsGrid.appendChild(new MiniEl("div", {}, "settings-content", { left: 52, top: 44, width: 944, height: 752, right: 996, bottom: 796 }));
+
+  const rail = new MiniEl("nav", { "data-app-navigation-rail": "true" }, "", { left: 0, top: 44, width: 52, height: 752, right: 52, bottom: 796 });
+  body.appendChild(rail);
+
+  const documentObj = {
+    documentElement: body,
+    body,
+    getElementById: () => null,
+    querySelector: (sel: string) => body.querySelector(sel),
+    querySelectorAll: (sel: string) => body.querySelectorAll(sel),
+  };
+  const style = styleNode();
+  const overlay = {
+    style,
+    isConnected: true,
+    classList: { contains: (name: string) => name === "codex-plus-page-overlay" },
+    getAttribute: (name: string) => name === "data-codex-plus-settings-embedded" ? "true" : null,
+  };
+
+  const runtime = new Function(
+    "document", "window", "getComputedStyle", "visibleElement",
+    "isNativeSettingsNavItemSelected", "codexPlusElementHasVisibleBackground", "codexPlusWindowZoom", "closeCodexPlusPage",
+    `
+    const codexPlusSettingsSectionId = "codex-plus-settings-section";
+    const codexPlusSettingsEmbeddedAttr = "data-codex-plus-settings-embedded";
+    const codexPlusPageClass = "codex-plus-page-overlay";
+    const codexPlusRailSelector = "nav[data-app-navigation-rail]";
+    ${functionSource("codexPlusSettingsContext")}
+    ${functionSource("positionCodexPlusPage")}
+    return { ctx: codexPlusSettingsContext, position: positionCodexPlusPage };
+    `,
+  )(
+    documentObj,
+    { innerWidth: 1000, innerHeight: 800 },
+    (node: unknown) => node === pageSurface ? { borderTopLeftRadius: "12px" } : { borderTopLeftRadius: "" },
+    (node: MiniEl) => node.rect.width > 0 && node.rect.height > 0,
+    () => false,
+    () => false,
+    () => 1,
+    () => { throw new Error("unexpected close"); },
+  ) as { ctx(): { sidebar: MiniEl; contentPane: MiniEl | null } | null; position(node: typeof overlay): void };
+
+  const ctx = runtime.ctx()!;
+  assert.equal(ctx.sidebar, settingsSidebar, "sidebar must stop on narrow settings sidebar and never walk up to body");
+  assert.equal(ctx.contentPane, overlappingRightPane);
+  runtime.position(overlay);
+  assert.equal(style.left, "245px", "embedded overlay clips left edge to settingsSidebar.right even when right pane starts at x=52");
+  assert.equal(style.top, "44px");
+  assert.equal(style.right, "4px");
+  assert.equal(style.bottom, "4px");
+  assert.equal(style.values.get("--codex-plus-page-radius"), "12px");
+
+  // Even when there is no rightSibling and no PageSurface/main candidate (contentPane === null),
+  // sidebar still stops on settingsSidebar (not body) and positions the right pane at 245px.
+  overlappingRightPane.rect = { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 };
+  pageSurface.className = "";
+  pageSurface.attributes.delete("data-app-shell-page-surface");
+  const fallbackCtx = runtime.ctx()!;
+  assert.equal(fallbackCtx.sidebar, settingsSidebar);
+  assert.equal(fallbackCtx.contentPane, null);
+  runtime.position(overlay);
+  assert.equal(style.left, "245px");
 });
