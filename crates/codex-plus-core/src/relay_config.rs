@@ -1680,8 +1680,12 @@ pub fn clear_relay_config_to_home_with_auth(
     auth_contents: Option<&str>,
 ) -> anyhow::Result<RelayApplyResult> {
     std::fs::create_dir_all(home)?;
-    let auth_bytes = match auth_contents {
-        Some(contents) if !contents.trim().is_empty() => Some(contents.as_bytes().to_vec()),
+    let cleaned_auth = auth_contents
+        .filter(|contents| !contents.trim().is_empty())
+        .map(remove_openai_api_key_from_auth_contents)
+        .transpose()?;
+    let auth_bytes = match cleaned_auth {
+        Some(contents) if !contents.trim().is_empty() => Some(contents.into_bytes()),
         _ => pure_api_auth_json_removed(home)?,
     };
     let config_path = home.join("config.toml");
@@ -1750,13 +1754,29 @@ pub fn clear_relay_config_to_home_with_auth(
         updated = remove_root_key(&updated, "model");
     }
     updated = remove_managed_remote_control_openai_base_url(&updated)?;
-    let backup_path = write_codex_live_atomic(home, Some(&updated), auth_bytes.as_deref())?;
+    let backup_path =
+        write_codex_live_atomic_official(home, Some(&updated), auth_bytes.as_deref())?;
     let status = relay_config_status_from_home(home);
     Ok(RelayApplyResult {
         config_path: status.config_path,
         backup_path,
         configured: status.configured,
     })
+}
+
+/// 从 JSON object 中移除纯 API 认证键（`OPENAI_API_KEY` 以及无 `tokens` 时残留的 `"auth_mode": "apikey"`）。
+fn strip_api_key_from_auth_object(object: &mut serde_json::Map<String, Value>) -> bool {
+    let mut changed = object.remove("OPENAI_API_KEY").is_some();
+    if !object.contains_key("tokens")
+        && object
+            .get("auth_mode")
+            .and_then(Value::as_str)
+            .is_some_and(|mode| mode.eq_ignore_ascii_case("apikey"))
+    {
+        object.remove("auth_mode");
+        changed = true;
+    }
+    changed
 }
 
 fn pure_api_auth_json_removed(home: &Path) -> anyhow::Result<Option<Vec<u8>>> {
@@ -1766,17 +1786,60 @@ fn pure_api_auth_json_removed(home: &Path) -> anyhow::Result<Option<Vec<u8>>> {
     }
 
     let existing = std::fs::read_to_string(&auth_path)?;
+    if existing.trim().is_empty() {
+        return Ok(Some(Vec::new()));
+    }
     let Ok(mut value) = serde_json::from_str::<Value>(&existing) else {
         return Ok(None);
     };
     let Some(object) = value.as_object_mut() else {
         return Ok(None);
     };
-    if object.remove("OPENAI_API_KEY").is_none() {
+    let changed = strip_api_key_from_auth_object(object);
+    if object.is_empty() {
+        // Codex >= 0.169 会将空 `{}` 识别为缺少 plan_type 的 ChatGPT 登录态导致 account/read 报 -32600；
+        // 返回空字节并由官方写盘入口删除 auth.json（与 `codex logout` 一致）。
+        return Ok(Some(Vec::new()));
+    }
+    if !changed {
         return Ok(None);
     }
 
     Ok(Some(serde_json::to_vec_pretty(&value)?))
+}
+
+/// 清理官方直连下磁盘上遗留的空 `{}` 或仅含 `"auth_mode": "apikey"` 的无效 `auth.json`。
+pub fn cleanup_empty_official_auth_in_home(home: &Path) -> anyhow::Result<bool> {
+    let auth_path = home.join("auth.json");
+    if !auth_path.exists() {
+        return Ok(false);
+    }
+    let _guard = crate::official_login::native_auth_write_guard(home)?;
+    let existing = match std::fs::read_to_string(&auth_path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    let should_remove = if existing.trim().is_empty() {
+        true
+    } else if let Ok(Value::Object(mut object)) = serde_json::from_str::<Value>(&existing) {
+        if !object.contains_key("tokens") && !object.contains_key("OPENAI_API_KEY") {
+            let _ = strip_api_key_from_auth_object(&mut object);
+            object.is_empty()
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    if !should_remove {
+        return Ok(false);
+    }
+    match std::fs::remove_file(&auth_path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub fn backfill_relay_profile_from_home(
@@ -2272,8 +2335,8 @@ pub(crate) fn apply_official_profile_to_home(
         // 旧API目录指针已移除；仍按本官方profile明确声明的窗口/元数据重新生成。
         let config = apply_model_catalog_to_config_with_live_policy(home, profile, &config, false)?;
         let auth = official_profile_auth_for_switch(home, &profile.auth_contents)?;
-        // 空配置是官方默认模式的合法状态，不能经过API入口的非空断言。
-        let backup_path = write_codex_live_atomic(home, Some(&config), Some(auth.as_bytes()))?;
+        // 空配置是官方默认模式的合法状态，不能经过API入口的非空断言；官方直连无凭据时删除 auth.json。
+        let backup_path = write_codex_live_atomic_official(home, Some(&config), Some(auth.as_bytes()))?;
         let status = relay_config_status_from_home(home);
         Ok(RelayApplyResult {
             config_path: status.config_path,
@@ -2865,10 +2928,44 @@ fn write_codex_live_atomic(
     write_codex_live_atomic_with(home, config_text, auth_bytes, crate::settings::atomic_write)
 }
 
+fn write_codex_live_atomic_official(
+    home: &Path,
+    config_text: Option<&str>,
+    auth_bytes: Option<&[u8]>,
+) -> anyhow::Result<Option<String>> {
+    write_codex_live_atomic_options(
+        home,
+        config_text,
+        auth_bytes,
+        true,
+        crate::settings::atomic_write,
+    )
+}
+
+fn is_empty_official_auth_bytes(bytes: &[u8]) -> bool {
+    if bytes.iter().all(|byte| byte.is_ascii_whitespace()) {
+        return true;
+    }
+    serde_json::from_slice::<Value>(bytes)
+        .ok()
+        .and_then(|value| value.as_object().map(|object| object.is_empty()))
+        .unwrap_or(false)
+}
+
 fn write_codex_live_atomic_with(
     home: &Path,
     config_text: Option<&str>,
     auth_bytes: Option<&[u8]>,
+    write: impl FnMut(&Path, &[u8]) -> anyhow::Result<()>,
+) -> anyhow::Result<Option<String>> {
+    write_codex_live_atomic_options(home, config_text, auth_bytes, false, write)
+}
+
+fn write_codex_live_atomic_options(
+    home: &Path,
+    config_text: Option<&str>,
+    auth_bytes: Option<&[u8]>,
+    remove_empty_auth: bool,
     mut write: impl FnMut(&Path, &[u8]) -> anyhow::Result<()>,
 ) -> anyhow::Result<Option<String>> {
     let _guard = crate::official_login::native_auth_write_guard(home)?;
@@ -2915,11 +3012,24 @@ fn write_codex_live_atomic_with(
         validate_auth_json(auth_bytes, &auth_path)?;
     }
 
+    let delete_auth = remove_empty_auth && auth_bytes.is_some_and(is_empty_official_auth_bytes);
     let old_config = read_optional_bytes(&config_path)?;
     let backup_path = create_live_backup(home, old_config.as_deref(), old_auth.as_deref())?;
     let mut auth_written = false;
+    let mut auth_removed = false;
 
-    if let Some(auth_bytes) = auth_bytes {
+    if delete_auth {
+        if old_auth.is_some() {
+            if read_optional_bytes(&auth_path)? != old_auth {
+                anyhow::bail!("原生登录已被其他进程更新，已停止覆盖，请重试");
+            }
+            match std::fs::remove_file(&auth_path) {
+                Ok(()) => auth_removed = true,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(anyhow::Error::from(error).context("清理空 auth.json 失败")),
+            }
+        }
+    } else if let Some(auth_bytes) = auth_bytes {
         if read_optional_bytes(&auth_path)? != old_auth {
             anyhow::bail!("原生登录已被其他进程更新，已停止覆盖，请重试");
         }
@@ -2937,9 +3047,14 @@ fn write_codex_live_atomic_with(
             write(&config_path, config_text.as_bytes())
         })();
         if let Err(error) = result {
-            if auth_written
+            let expected_auth = if auth_removed {
+                None
+            } else {
+                auth_bytes
+            };
+            if (auth_written || auth_removed)
                 && read_optional_bytes(&auth_path)
-                    .is_ok_and(|current| current.as_deref() == auth_bytes)
+                    .is_ok_and(|current| current.as_deref() == expected_auth)
             {
                 if let Err(restore_error) = restore_optional_file(&auth_path, old_auth.as_deref()) {
                     return Err(error.context(format!("写入 config.toml 失败；恢复 auth.json 也失败：{restore_error}")));
@@ -6028,12 +6143,14 @@ fn sync_profile_mode_from_backfilled_live(profile: &mut RelayProfile) {
 }
 
 fn official_profile_auth_for_switch(home: &Path, auth_contents: &str) -> anyhow::Result<String> {
-    let source = if auth_contents.trim().is_empty() {
-        read_optional_text(&home.join("auth.json"))?
-    } else {
-        auth_contents.to_string()
-    };
-    remove_openai_api_key_from_auth_contents(&source)
+    if !auth_contents.trim().is_empty() {
+        let cleaned = remove_openai_api_key_from_auth_contents(auth_contents)?;
+        if !cleaned.trim().is_empty() {
+            return Ok(cleaned);
+        }
+    }
+    let live = read_optional_text(&home.join("auth.json"))?;
+    remove_openai_api_key_from_auth_contents(&live)
 }
 
 /// 生成写入 live 的 auth.json 内容：把本地代理的 bearer token 放进 `OPENAI_API_KEY`，
@@ -6877,7 +6994,7 @@ fn remove_openai_api_key_from_auth_contents(auth_contents: &str) -> anyhow::Resu
     let Some(object) = value.as_object_mut() else {
         anyhow::bail!("auth.json 必须是 JSON 对象");
     };
-    object.remove("OPENAI_API_KEY");
+    let _ = strip_api_key_from_auth_object(object);
     if object.is_empty() {
         return Ok(String::new());
     }

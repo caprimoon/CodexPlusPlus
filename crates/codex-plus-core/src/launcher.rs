@@ -1335,6 +1335,20 @@ impl LaunchHooks for DefaultLaunchHooks {
     fn cleanup_unsupported_config(&self, settings: &BackendSettings) -> anyhow::Result<()> {
         let home = crate::relay_config::default_codex_home_dir();
         crate::relay_config::cleanup_unsupported_approval_policies_in_home(&home)?;
+        let active = settings.active_relay_profile();
+        if settings.relay_profiles_enabled
+            && settings.native_auth_selection.is_none()
+            && active.relay_mode == crate::settings::RelayMode::Official
+            && !active.official_mix_api_key
+            && active.auth_contents.trim().is_empty()
+        {
+            if let Err(error) = crate::relay_config::cleanup_empty_official_auth_in_home(&home) {
+                let _ = crate::diagnostic_log::append_diagnostic_log(
+                    "launcher.empty_official_auth_cleanup_failed",
+                    serde_json::json!({ "message": error.to_string() }),
+                );
+            }
+        }
         if let Err(error) =
             crate::relay_config::ensure_managed_session_provider_in_home(&home, settings)
         {

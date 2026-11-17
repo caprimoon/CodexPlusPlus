@@ -3963,21 +3963,41 @@ experimental_bearer_token = "sk-test-redacted"
 
 #[test]
 fn clear_relay_config_removes_openai_api_key_when_auth_json_only_contains_pure_api_key() {
-    let temp = tempfile::tempdir().unwrap();
-    std::fs::write(
-        temp.path().join("auth.json"),
+    for initial_auth in [
         r#"{"OPENAI_API_KEY":"sk-test-redacted"}"#,
+        r#"{"OPENAI_API_KEY":"sk-test-redacted","auth_mode":"apikey"}"#,
+        "{}",
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("auth.json"), initial_auth).unwrap();
+
+        clear_relay_config_to_home(temp.path()).unwrap();
+
+        assert!(
+            !temp.path().join("auth.json").exists(),
+            "官方直连未登录不应留下空 auth.json（会导致 Codex >= 0.169 account/read 报 -32600）：initial={initial_auth}"
+        );
+    }
+
+    // 即使传入空的 {} 快照或配置官方 + 通用配置段，也不得写回空 {} 阻塞官网登录。
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("auth.json"), r#"{"OPENAI_API_KEY":"sk-test"}"#).unwrap();
+    let official_with_common = RelayProfile {
+        id: "official-direct".to_string(),
+        name: "官方直连".to_string(),
+        relay_mode: RelayMode::Official,
+        official_mix_api_key: false,
+        use_common_config: true,
+        auth_contents: "{}".to_string(),
+        ..RelayProfile::default()
+    };
+    apply_relay_profile_to_home_with_switch_rules(
+        temp.path(),
+        &official_with_common,
+        "model_reasoning_effort = \"high\"\n",
     )
     .unwrap();
-
-    clear_relay_config_to_home(temp.path()).unwrap();
-
-    let auth: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(temp.path().join("auth.json")).unwrap())
-            .unwrap();
-    let auth_object = auth.as_object().unwrap();
-    assert!(!auth_object.contains_key("OPENAI_API_KEY"));
-    assert!(auth_object.is_empty());
+    assert!(!temp.path().join("auth.json").exists());
 }
 
 #[test]
