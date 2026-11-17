@@ -183,10 +183,8 @@ export function withBuiltinSetting<T extends object>(settings: T, path: string, 
   return { ...settings, [head]: next };
 }
 
-export function managerStandaloneGroup(catalog = enhancementCatalog): EnhancementSettingGroup {
-  const group = catalog.groups.find((candidate) => candidate.managerTab === "general" && candidate.standalone);
-  if (!group) throw new Error("enhancement catalog is missing the standalone group");
-  return group;
+export function managerStandaloneGroup(catalog = enhancementCatalog): EnhancementSettingGroup | null {
+  return catalog.groups.find((candidate) => candidate.managerTab === "general" && candidate.standalone) ?? null;
 }
 
 export function isEnhancementItemMasterGated(item: EnhancementSettingItem): boolean {

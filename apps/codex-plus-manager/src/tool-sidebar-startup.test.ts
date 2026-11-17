@@ -17,7 +17,6 @@ it("启动直接加载工具列表，不再发起广告或更新网络请求", a
     refreshEnvConflicts: noOp,
     refreshProviderSyncTargets: noOp,
     refreshPendingProviderImport: noOp,
-    refreshPendingDreamSkinCommunity: noOp,
     releaseMainWindowWhenHidden: () => {},
   };
   new Function(...Object.keys(dependencies), startup)(

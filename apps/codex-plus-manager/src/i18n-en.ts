@@ -3645,6 +3645,11 @@ export const EN_PLAIN: Record<string, string> = {
   "为单个供应商单独指定 HTTP 代理；留空表示沿用系统代理。": "Set a dedicated HTTP proxy per provider; leave blank to follow the system proxy.",
   "打开后，切换供应商或重启 Codex 时：实时 config.toml 里改过的 MCP 服务器（命令、参数、env、超时）以实时文件为准，缺失的项目信任设置和通知命令从实时文件补回。": "When enabled, switching providers or restarting Codex keeps MCP server edits from live config.toml and restores missing project trust and notification commands from the live file.",
   "始终按目标重写的供应商设置：model_provider、model、供应商地址与凭据、模型目录。不论开关都保留：Codex++ 没有托管的 MCP / 插件条目与 [[skills.config]] 技能启停。": "Always rewritten from target provider: model_provider, model, provider endpoint & credentials, and model list. Always preserved regardless of toggle: unmanaged MCP / plugin entries and [[skills.config]] toggles.",
+  "官方直连": "Official Direct",
+  "「官方直连」是系统默认直连供应商，不可删除。": "\"Official Direct\" is a built-in direct provider and cannot be deleted.",
+  "系统内置官方直连固定使用 ChatGPT 官方账号登录。": "Built-in Official Direct always uses ChatGPT official account login.",
+  "管理常用功能与语音输入。": "Manage general features and voice dictation.",
+  "已暂停所有内置拓展，仅保留基础连接配置；服务配置会保留。": "Built-in extensions are paused while core connection settings remain active; service configuration is preserved.",
 };
 
 // Interpolated strings: tf("前缀 {0}", [x]) -> EN_TEMPLATE["前缀 {0}"] with {0} filled.

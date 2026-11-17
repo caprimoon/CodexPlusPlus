@@ -4724,7 +4724,7 @@ pub fn load_settings() -> CommandResult<SettingsPayload> {
     }
     match codex_plus_core::provider_import::initialize_local_config_provider(&store, &home) {
         Ok(_) => {
-            let settings = match store.load() {
+            let mut settings = match store.load() {
                 Ok(settings) => settings,
                 Err(error) => {
                     return failed(
@@ -4733,6 +4733,7 @@ pub fn load_settings() -> CommandResult<SettingsPayload> {
                     );
                 }
             };
+            codex_plus_core::settings::ensure_official_direct_profile(&mut settings);
             if let Err(error) =
                 codex_plus_core::relay_config::migrate_managed_model_catalog_pointer_in_home(
                     &home, &settings,
@@ -11157,9 +11158,11 @@ fn settings_payload_value() -> Result<SettingsPayload, (anyhow::Error, SettingsP
 }
 
 fn fallback_settings_payload() -> SettingsPayload {
+    let mut settings = SettingsStore::default().load().unwrap_or_default();
+    codex_plus_core::settings::ensure_official_direct_profile(&mut settings);
     SettingsPayload {
         revision: SettingsStore::default().revision().unwrap_or_default(),
-        settings: SettingsStore::default().load().unwrap_or_default(),
+        settings,
         settings_path: codex_plus_core::paths::default_settings_path()
             .to_string_lossy()
             .to_string(),

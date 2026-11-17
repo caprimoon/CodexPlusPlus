@@ -561,6 +561,16 @@ impl CommunityStore {
         crate::settings::atomic_write(&self.config_dir.join(STATE_FILE), serde_json::to_string_pretty(state)?.as_bytes())
     }
 
+    /// 首次预装社区拓展包时补齐安装来源记录（若用户已安装或已有记录则保留原样）。
+    pub fn seed_install_record(&self, id: &str, record: InstallRecord) -> anyhow::Result<()> {
+        let mut state = self.load_state();
+        if state.installs.contains_key(id) {
+            return Ok(());
+        }
+        state.installs.insert(id.to_string(), record);
+        self.save_state(&state)
+    }
+
     pub fn set_enabled(&self, enabled: bool) -> anyhow::Result<()> {
         let mut state = self.load_state();
         state.enabled = enabled;

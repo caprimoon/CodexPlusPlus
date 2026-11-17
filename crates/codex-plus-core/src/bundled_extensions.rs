@@ -146,33 +146,140 @@ pub fn proxy_request_status_files() -> Vec<(&'static str, Vec<u8>)> {
     ]
 }
 
-/// 全部官方拓展包：(目录名, 包内文件)。
+/// 已下线的官方默认内置外部拓展目录名（升级和初始化时清理）。
+pub const RETIRED_BUNDLED_DIRS: &[&str] = &[
+    AGENT_PET_DIR,
+    TYPING_EFFECTS_DIR,
+    IMAGE_OVERLAY_DIR,
+    USAGE_STATUSLINE_DIR,
+    PROXY_REQUEST_STATUS_DIR,
+];
+
+/// 已下线的官方默认内置外部拓展脚本 key（升级和初始化时从 user_scripts.json 清理）。
+pub const RETIRED_BUNDLED_KEYS: &[&str] = &[
+    AGENT_PET_KEY,
+    TYPING_EFFECTS_KEY,
+    IMAGE_OVERLAY_KEY,
+    USAGE_STATUSLINE_KEY,
+    PROXY_REQUEST_STATUS_KEY,
+];
+
+const DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v1";
+pub const LIVE_WALLPAPER_ID: &str = "live-wallpaper-studio";
+pub const LIVE_WALLPAPER_KEY: &str = "user:live-wallpaper-studio";
+const LIVE_WALLPAPER_MANIFEST: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/codexpp.json");
+const LIVE_WALLPAPER_RENDERER: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/renderer.js");
+const LIVE_WALLPAPER_BACKEND: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/backend/main.mjs");
+const LIVE_WALLPAPER_README: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/README.md");
+
+pub const TOKENLENS_MARKET_ID: &str = "tokenlens-for-codex";
+pub const TOKENLENS_KEY: &str = "user:market-tokenlens-for-codex.js";
+const TOKENLENS_SCRIPT: &str = include_str!("../../../assets/default-extensions/tokenlens-for-codex/tokenlens.js");
+
+/// 已移除随客户端强制释放的官方默认拓展包，返回空列表。
 pub fn packages() -> Vec<(&'static str, Vec<(&'static str, Vec<u8>)>)> {
-    vec![
-        (AGENT_PET_DIR, agent_pet_files()),
-        (TYPING_EFFECTS_DIR, typing_effects_files()),
-        (IMAGE_OVERLAY_DIR, image_overlay_files()),
-        (USAGE_STATUSLINE_DIR, usage_statusline_files()),
-        (PROXY_REQUEST_STATUS_DIR, proxy_request_status_files()),
-    ]
+    Vec::new()
 }
 
-/// 把官方拓展包写到 `directory`（`<配置目录>/bundled_extensions`）下；内容没变的文件不重写。
+/// 清理已下线的官方默认拓展包目录，避免在「外部拓展」中继续加载或残留。
 pub fn materialize(directory: &Path) -> anyhow::Result<()> {
-    for (package, files) in packages() {
+    for package in RETIRED_BUNDLED_DIRS {
         let root = directory.join(package);
-        for (relative, content) in files {
-            let path = root.join(relative);
-            if std::fs::read(&path).is_ok_and(|existing| existing == content) {
-                continue;
-            }
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent).with_context(|| format!("无法创建 {}", parent.display()))?;
-            }
-            crate::settings::atomic_write(&path, &content).with_context(|| format!("无法写入 {}", path.display()))?;
+        if root.exists() {
+            std::fs::remove_dir_all(&root)
+                .with_context(|| format!("无法清理已移除的默认拓展目录 {}", root.display()))?;
         }
     }
     Ok(())
+}
+
+/// 首次初始化或升级后只执行一次：默认安装「动态壁纸」（禁用）并默认安装且启用「TokenLens for Codex」。
+/// 若后续用户在管理器里手动卸载或修改启停，因存在标记文件不会再次覆盖。
+pub fn seed_default_extensions(
+    config_dir: &Path,
+    manager: &crate::user_scripts::UserScriptManager,
+) -> anyhow::Result<bool> {
+    std::fs::create_dir_all(config_dir)
+        .with_context(|| format!("无法创建配置目录 {}", config_dir.display()))?;
+    let marker = config_dir.join(DEFAULT_EXTENSIONS_MARKER);
+    if marker.exists() {
+        return Ok(false);
+    }
+
+    let wallpaper_dir = manager.user_dir().join(LIVE_WALLPAPER_ID);
+    if !wallpaper_dir.join("codexpp.json").exists() {
+        for (relative, content) in [
+            ("codexpp.json", LIVE_WALLPAPER_MANIFEST.as_bytes()),
+            ("renderer.js", LIVE_WALLPAPER_RENDERER.as_bytes()),
+            ("backend/main.mjs", LIVE_WALLPAPER_BACKEND.as_bytes()),
+            ("README.md", LIVE_WALLPAPER_README.as_bytes()),
+        ] {
+            let target = wallpaper_dir.join(relative);
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("无法创建 {}", parent.display()))?;
+            }
+            crate::settings::atomic_write(&target, content)
+                .with_context(|| format!("无法写入 {}", target.display()))?;
+        }
+    }
+    manager.seed_default_script(LIVE_WALLPAPER_KEY, false)?;
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    crate::extension_discovery::CommunityStore::new(config_dir).seed_install_record(
+        LIVE_WALLPAPER_ID,
+        crate::extension_discovery::InstallRecord {
+            repo: "luojinghao/codex-live-wallpaper".to_string(),
+            version: "1.2.0".to_string(),
+            tag: Some("v1.2.0".to_string()),
+            sha: "b04329ee5a1c7576cbe60c601fe0bdd674fa4947".to_string(),
+            from_default_branch: false,
+            from_asset: false,
+            installed_at: now_secs,
+            channel: crate::extension_discovery::CHANNEL_COMMUNITY.to_string(),
+        },
+    )?;
+
+    let tokenlens_path = manager.user_script_path_for_market_id(TOKENLENS_MARKET_ID);
+    if !tokenlens_path.exists() {
+        if let Some(parent) = tokenlens_path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("无法创建 {}", parent.display()))?;
+        }
+        crate::settings::atomic_write(&tokenlens_path, TOKENLENS_SCRIPT.as_bytes())
+            .with_context(|| format!("无法写入 {}", tokenlens_path.display()))?;
+    }
+    manager.seed_default_market_script(
+        &crate::script_market::MarketScript {
+            id: TOKENLENS_MARKET_ID.to_string(),
+            name: "TokenLens for Codex".to_string(),
+            description: "在 Codex++ 底栏显示实时 tok/s、平均速度、上下文、Token、缓存、调用图表与 TOP 排行，并提供工具分类和多时间范围用量统计。".to_string(),
+            version: "1.0.5".to_string(),
+            author: "LingYingNX".to_string(),
+            tags: vec![
+                "codex".to_string(),
+                "tokens".to_string(),
+                "throughput".to_string(),
+                "usage".to_string(),
+                "cache".to_string(),
+                "tools".to_string(),
+                "ui".to_string(),
+            ],
+            homepage: "https://github.com/LingYingNX/TokenLens-for-Codex".to_string(),
+            script_url: "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/tokenlens-for-codex.js".to_string(),
+            requirements: Vec::new(),
+            limitations: Vec::new(),
+            icon: String::new(),
+            updated_at: String::new(),
+        },
+        true,
+    )?;
+
+    crate::settings::atomic_write(&marker, b"v1\n")
+        .with_context(|| format!("无法写入 {}", marker.display()))?;
+    Ok(true)
 }
 
 /// 原来的内置桌宠设置（`agentPet` 与 `codexAppWhaleBalance*`）换算成桌宠拓展的配置。

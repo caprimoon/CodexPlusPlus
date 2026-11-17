@@ -885,14 +885,12 @@ describe("renderer injection header compatibility", () => {
     assert.match(html, /data-codex-plus-setting="pluginMarketplaceUnlock"/);
   });
 
-  it("shows the next-step suggestion feature with its Chinese name", async () => {
+  it("removes next-step suggestion from the enhancement catalog while keeping runtime labels Chinese", async () => {
     const renderer = await readFile(new URL("../../../assets/inject/renderer-inject.js", import.meta.url), "utf8");
     const generation = await readFile(new URL("../../../assets/inject/floating-panel/stepwise/generation.js", import.meta.url), "utf8");
-    // 标题来自设置项清单（与管理器同一份），注入脚本里不再写死。
     const catalog = JSON.parse(await readFile(settingsCatalogUrl, "utf8"));
     const stepwise = catalog.items.find((item: { key: string }) => item.key === "codexAppStepwiseEnabled");
-    assert.equal(stepwise.title, "下一步建议");
-    assert.ok(stepwise.surfaces.includes("codex"));
+    assert.equal(stepwise, undefined);
     assert.doesNotMatch(renderer, /悬浮球 · Stepwise/);
     for (const item of catalog.items) assert.doesNotMatch(`${item.title}${item.description}`, /Stepwise/);
     assert.match(generation, /window\.prompt\("复制下一步建议提示词", prompt\)/);
@@ -2161,7 +2159,7 @@ it("opens Stepwise configuration in the manager enhancement page", async () => {
 });
 
 describe("Stepwise generation mode contracts", () => {
-  it("exposes automatic and manual generation in manager enhancements", async () => {
+  it("retains Stepwise backend settings compatibility types after UI removal", async () => {
     const app = await readFile(new URL("./App.tsx", import.meta.url), "utf8");
     const renderer = await readFile(
       new URL("../../../assets/inject/renderer-inject.js", import.meta.url),
@@ -2174,11 +2172,6 @@ describe("Stepwise generation mode contracts", () => {
     assert.match(app, /codexAppStepwiseGenerationMode: "auto",/);
     assert.match(app, /codexAppAnswerOutlineEnabled: false,/);
     assert.match(renderer, /answerOutline: false,/);
-    assert.match(app, /<Field label=\{t\("模式"\)\}>/);
-    assert.match(app, /\{ value: "auto", label: t\("自动生成"\) \}/);
-    assert.match(app, /\{ value: "manual", label: t\("手动刷新"\) \}/);
-    assert.match(app, /\{ value: "auto", label: t\("自动兼容"\) \}/);
-    assert.match(app, /\{ value: "anthropic_messages", label: "Anthropic Messages" \}/);
     assert.match(app, /function normalizeStepwiseProtocol\(/);
     assert.match(app, /return value === "manual" \? "manual" : "auto";/);
   });
@@ -3306,9 +3299,11 @@ describe("Codex++ 设置页按设置项清单生成", () => {
       if (!entry.setting || entry.setting.includes(".")) assert.match(row, new RegExp(`data-codex-builtin-extension="${entry.id}"`));
       else assert.doesNotMatch(row, /data-codex-builtin-extension=/);
     }
-    assert.match(html, /data-codex-plus-builtin="dream-skin">[\s\S]*?data-codex-plus-setting="dreamSkinEnabled"/);
+    for (const removed of ["dream-skin", "instance-identity"]) {
+      assert.ok(!catalog.builtins.some((entry) => entry.id === removed), `${removed} 应已从内置拓展目录移除`);
+    }
     const ambientSection = sections.find((section) => section.rows.some((row) => row.key === ambientKey));
-    assert.equal(ambientSection?.title, catalog.groups.find((group) => group.id === "stepwise")!.title, "上下文感知建议应在 stepwise 组");
+    assert.equal(ambientSection?.title, catalog.groups.find((group) => group.id === "chat")!.title, "stepwise 组移除后上下文感知建议回落到 chat 组");
     const ambientRow = ambientSection!.rows.find((row) => row.key === ambientKey)!;
     assert.match(ambientRow.title, /Context-aware suggestions/);
     assert.match(ambientRow.control, /data-codex-app-ambient-suggestions="true" role="switch"/);
@@ -3336,7 +3331,6 @@ describe("Codex++ 设置页按设置项清单生成", () => {
     // 第一组最前面固定是后端连接状态，它不是设置项。
     assert.match(sections[0].rows[0].control, /data-codex-backend-status="true"/);
     // 能映射到本页 key 的走 setCodexPlusSetting，其余直接写后端字段。
-    assert.match(html, /data-codex-plus-setting="stepwise"/);
     assert.match(html, /data-codex-plus-setting="markdownExport"/);
     assert.match(html, /data-codex-backend-setting="providerSyncEnabled"/);
     assert.match(html, /data-codex-plus-capacity-retry-interval="true" min="0" max="600"/);
@@ -3347,28 +3341,46 @@ describe("Codex++ 设置页按设置项清单生成", () => {
     }
   });
 
-  it("独立模式补丁的说明随增强总开关切换，与管理器一致", async () => {
+  it("已移除的独立模式、外观、桌宠与下一步建议不再出现在设置清单中；说明切换逻辑保留兼容", async () => {
     const catalog = await readCatalog();
-    const switching = catalog.items.filter((item) => item.descriptionWhenEnhancementsOn && item.surfaces.includes("codex"));
-    assert.ok(switching.length > 0);
+    for (const id of ["pet", "stepwise", "appearance", "standalone"]) {
+      assert.ok(!catalog.groups.some((group) => group.id === id), `${id} 应已移除`);
+    }
+    const syntheticCatalog = {
+      ...catalog,
+      items: catalog.items.map((item: any) =>
+        item.key === "codexAppSessionDeleteSkipConfirm"
+          ? {
+              ...item,
+              description: "关闭总开关时的说明",
+              descriptionWhenEnhancementsOn: "开启总开关时的说明",
+            }
+          : item,
+      ),
+    };
     for (const enhancementsEnabled of [true, false]) {
-      const page = await settingsCatalogRuntime(async () => catalog, undefined, { enhancementsEnabled });
+      const page = await settingsCatalogRuntime(async () => syntheticCatalog, undefined, { enhancementsEnabled });
       await page.load();
       const rows = parseSettingsSections(page.sections()).flatMap((section) => section.rows);
-      for (const item of switching) {
-        const row = rows.find((candidate) => candidate.key === item.key)!;
-        assert.equal(row.description, enhancementsEnabled ? item.descriptionWhenEnhancementsOn : item.description, `${item.key} enhancements=${enhancementsEnabled}`);
-        assert.match(row.control + page.sections(), new RegExp(`data-codex-plus-setting-description="${item.key}"`));
-      }
+      const row = rows.find((candidate) => candidate.key === "codexAppSessionDeleteSkipConfirm")!;
+      assert.equal(row.description, enhancementsEnabled ? "开启总开关时的说明" : "关闭总开关时的说明");
     }
   });
 
   it("按清单的平台限制过滤设置项", async () => {
     const catalog = await readCatalog();
-    const limited = catalog.items.filter((item) => item.platforms && item.surfaces.includes("codex"));
+    const syntheticCatalog = {
+      ...catalog,
+      items: catalog.items.map((item) =>
+        item.key === "codexAppNativeBrowserRequireIdentification"
+          ? { ...item, surfaces: ["manager", "codex"] }
+          : item,
+      ),
+    };
+    const limited = syntheticCatalog.items.filter((item) => item.platforms && item.surfaces.includes("codex"));
     assert.ok(limited.length > 0);
     for (const [platform, flags] of [["windows", { windows: true, mac: false }], ["macos", { windows: false, mac: true }], ["linux", { windows: false, mac: false }]] as const) {
-      const page = await settingsCatalogRuntime(async () => catalog, flags);
+      const page = await settingsCatalogRuntime(async () => syntheticCatalog, flags);
       await page.load();
       const html = page.sections();
       for (const item of limited) {

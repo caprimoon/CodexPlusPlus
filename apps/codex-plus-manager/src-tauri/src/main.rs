@@ -152,11 +152,7 @@ fn main() {
         }
     }
     for arg in std::env::args() {
-        if arg.starts_with("dreamskin://") {
-            if codex_plus_manager_lib::handle_dream_skin_url(&arg) {
-                codex_plus_manager_lib::focus_existing_manager_window();
-            }
-        } else if codex_plus_manager_lib::handle_provider_import_url(&arg) {
+        if codex_plus_manager_lib::handle_provider_import_url(&arg) {
             codex_plus_manager_lib::focus_existing_manager_window();
         }
     }

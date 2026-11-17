@@ -2238,6 +2238,54 @@ pub fn default_relay_profiles() -> Vec<RelayProfile> {
     vec![RelayProfile::default()]
 }
 
+pub const OFFICIAL_DIRECT_RELAY_ID: &str = "official-direct";
+
+/// 内置「官方直连」供应商配置：固定为 Official Direct 模式，切到它后会清掉第三方代理与 API Key。
+pub fn official_direct_relay_profile() -> RelayProfile {
+    RelayProfile {
+        id: OFFICIAL_DIRECT_RELAY_ID.to_string(),
+        name: "官方直连".to_string(),
+        relay_mode: RelayMode::Official,
+        official_mix_api_key: false,
+        protocol: RelayProtocol::Responses,
+        ..RelayProfile::default()
+    }
+}
+
+/// 保证供应商列表中存在不可删除且模式锁定的「官方直连」入口。
+pub fn ensure_official_direct_profile(settings: &mut BackendSettings) {
+    if is_default_single_profile(&settings.relay_profiles) {
+        let mut official = official_direct_relay_profile();
+        official.official_account_ref = settings.relay_profiles[0].official_account_ref.clone();
+        official.auth_contents = settings.relay_profiles[0].auth_contents.clone();
+        settings.relay_profiles = vec![official];
+        if settings.active_relay_id.is_empty() || settings.active_relay_id == "default" {
+            settings.active_relay_id = OFFICIAL_DIRECT_RELAY_ID.to_string();
+        }
+        return;
+    }
+    if let Some(existing) = settings
+        .relay_profiles
+        .iter_mut()
+        .find(|profile| profile.id == OFFICIAL_DIRECT_RELAY_ID)
+    {
+        existing.relay_mode = RelayMode::Official;
+        existing.official_mix_api_key = false;
+        existing.protocol = RelayProtocol::Responses;
+        existing.aggregate = None;
+        if existing.name.trim().is_empty() {
+            existing.name = "官方直连".to_string();
+        }
+        return;
+    }
+    settings
+        .relay_profiles
+        .insert(0, official_direct_relay_profile());
+    if settings.active_relay_id.trim().is_empty() {
+        settings.active_relay_id = OFFICIAL_DIRECT_RELAY_ID.to_string();
+    }
+}
+
 /// 判断一份供应商列表是否退化成了「仅剩默认 profile」。
 ///
 /// 这是 `load` 失败后退回默认设置、再被原样回写磁盘的典型形态。
@@ -6185,6 +6233,41 @@ experimental_bearer_token = "sk-existing""#
             .update(json!({ "codexAppSessionDeleteSkipConfirm": false }))
             .unwrap();
         assert!(!store.load().unwrap().codex_app_session_delete_skip_confirm);
+    }
+
+    #[test]
+    fn ensure_official_direct_profile_prepends_locked_direct_entry_without_clobbering_existing() {
+        let mut settings = BackendSettings {
+            active_relay_id: "custom-api".to_string(),
+            relay_profiles: vec![RelayProfile {
+                id: "custom-api".to_string(),
+                name: "Magpie".to_string(),
+                relay_mode: RelayMode::PureApi,
+                protocol: RelayProtocol::Responses,
+                ..RelayProfile::default()
+            }],
+            ..BackendSettings::default()
+        };
+        ensure_official_direct_profile(&mut settings);
+        assert_eq!(settings.active_relay_id, "custom-api");
+        assert_eq!(settings.relay_profiles.len(), 2);
+        assert_eq!(settings.relay_profiles[0].id, OFFICIAL_DIRECT_RELAY_ID);
+        assert_eq!(settings.relay_profiles[0].name, "官方直连");
+        assert_eq!(settings.relay_profiles[0].relay_mode, RelayMode::Official);
+        assert!(!settings.relay_profiles[0].official_mix_api_key);
+        assert_eq!(settings.relay_profiles[0].protocol, RelayProtocol::Responses);
+
+        // Even if someone tampers with official-direct fields on disk, ensure resets it back to Official Responses.
+        settings.relay_profiles[0].relay_mode = RelayMode::PureApi;
+        settings.relay_profiles[0].official_mix_api_key = true;
+        settings.relay_profiles[0].protocol = RelayProtocol::ChatCompletions;
+        settings.relay_profiles[0].name = "  ".to_string();
+        ensure_official_direct_profile(&mut settings);
+        assert_eq!(settings.relay_profiles.len(), 2);
+        assert_eq!(settings.relay_profiles[0].relay_mode, RelayMode::Official);
+        assert!(!settings.relay_profiles[0].official_mix_api_key);
+        assert_eq!(settings.relay_profiles[0].protocol, RelayProtocol::Responses);
+        assert_eq!(settings.relay_profiles[0].name, "官方直连");
     }
 
 }

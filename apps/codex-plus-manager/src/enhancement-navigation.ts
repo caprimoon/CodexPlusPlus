@@ -1,4 +1,4 @@
-export type EnhancementSection = "stepwise" | "dictation";
+export type EnhancementSection = "dictation";
 export type EnhancementTab = "general" | EnhancementSection;
 
 export type ManagerNavigationIntent = {
@@ -7,7 +7,6 @@ export type ManagerNavigationIntent = {
 };
 
 export const ENHANCEMENT_SECTION_IDS: Record<EnhancementSection, string> = {
-  stepwise: "enhance-stepwise",
   dictation: "enhance-dictation",
 };
 

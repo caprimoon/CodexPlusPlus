@@ -162,21 +162,24 @@ fn replaces_must_name_a_known_builtin() {
     assert_eq!(manager.builtin_extension_state().unwrap()["replacedBy"], json!({}));
 }
 
-/// Rust 侧生效的内置拓展也能被顶替（Rust 侧经 builtin_takeover 让位）；只有拓展不加载时才生效的官方额度解锁不能。
+/// Rust 侧生效的内置拓展也能被顶替（Rust 侧经 builtin_takeover 让位）；已下线的拓展不再出现在目录中。
 #[test]
-fn rust_side_builtins_can_be_replaced_except_standalone_quota_unlock() {
+fn rust_side_builtins_can_be_replaced() {
     let temp = tempfile::tempdir().unwrap();
     let manager = manager(temp.path());
     for id in codex_plus_core::builtin_takeover::RUST_SIDE_BUILTINS {
         assert_eq!(builtin(&manager, id)["replaceable"], true, "{id}");
     }
-    assert_eq!(builtin(&manager, "standalone-quota-unlock")["replaceable"], false);
+    for removed in ["standalone-quota-unlock", "pet-real-mouse", "dream-skin", "instance-identity"] {
+        assert!(
+            codex_plus_core::settings_catalog::builtin_extension_def(removed).is_none(),
+            "{removed} 应从内置拓展目录移除"
+        );
+    }
     write_package(temp.path(), "fast", json!({ "id": "fast", "renderer": "renderer.js", "replaces": ["native-fast-unlock", "force-chinese-locale"] }));
-    write_package(temp.path(), "quota", json!({ "id": "quota", "renderer": "renderer.js", "replaces": ["standalone-quota-unlock"] }));
     let inventory = manager.inventory().unwrap();
     let find = |key: &str| inventory["scripts"].as_array().unwrap().iter().find(|item| item["key"] == key).cloned().unwrap();
     assert_eq!(find("user:fast")["error"], "", "{}", find("user:fast"));
-    assert!(find("user:quota")["error"].as_str().unwrap().contains("不能被拓展顶替"), "{}", find("user:quota"));
     assert_eq!(manager.builtin_extension_state().unwrap()["replacedBy"]["native-fast-unlock"], "user:fast");
 }
 

@@ -16,31 +16,6 @@
       "title": "对话与输入",
       "description": "调整会话管理、输入行为和对话阅读体验。",
       "managerTab": "general"
-    },
-    {
-      "id": "pet",
-      "title": "桌宠与活动",
-      "description": "调整 Codex 原生桌宠与活动进度条。可点按的 Agent 桌宠在「工具 → Agent 桌宠」里设置。",
-      "managerTab": "general"
-    },
-    {
-      "id": "stepwise",
-      "title": "下一步建议",
-      "description": "控制下一步建议与回答大纲。",
-      "managerTab": "stepwise"
-    },
-    {
-      "id": "appearance",
-      "title": "外观",
-      "description": "Codex 窗口的主题、背景图与多开标识。",
-      "managerTab": "general"
-    },
-    {
-      "id": "standalone",
-      "title": "独立模式",
-      "description": "增强总开关关闭后仍会生效的补丁。",
-      "managerTab": "general",
-      "standalone": true
     }
   ],
   "items": [
@@ -370,86 +345,6 @@
         "manager",
         "codex"
       ]
-    },
-    {
-      "key": "codexAppActivityOverlayRight",
-      "builtin": "activity-overlay-right",
-      "group": "pet",
-      "control": "bool",
-      "title": "活动进度条右侧布局",
-      "description": "把 Codex 原生活动进度条、状态波形和活动悬浮框移到右侧，并镜像波形方向。",
-      "surfaces": [
-        "manager",
-        "codex"
-      ]
-    },
-    {
-      "key": "codexAppPetRealMouseLook",
-      "builtin": "pet-real-mouse",
-      "group": "pet",
-      "control": "bool",
-      "title": "桌宠跟随真实鼠标",
-      "description": "仅支持 V2 桌宠；不会修改宠物文件。将 V2 的 Computer Use 光标朝向动作映射到真实鼠标，V1 开启后安全不生效；拖拽、原生悬停或 Computer Use 活跃时自动让步。",
-      "platforms": [
-        "windows",
-        "macos"
-      ],
-      "surfaces": [
-        "manager",
-        "codex"
-      ]
-    },
-    {
-      "key": "codexAppStepwiseEnabled",
-      "builtin": "stepwise",
-      "group": "stepwise",
-      "control": "bool",
-      "title": "下一步建议",
-      "description": "根据当前回答生成下一步建议。",
-      "surfaces": [
-        "manager",
-        "codex"
-      ]
-    },
-    {
-      "key": "codexAppAnswerOutlineEnabled",
-      "builtin": "answer-outline",
-      "group": "stepwise",
-      "control": "bool",
-      "title": "回答大纲",
-      "description": "整理当前回答的结构。",
-      "surfaces": [
-        "manager",
-        "codex"
-      ]
-    },
-    {
-      "key": "codexAppStepwiseDirectSend",
-      "parent": "stepwise",
-      "group": "stepwise",
-      "control": "bool",
-      "title": "建议直接发送",
-      "description": "点击建议后直接发送到当前会话。",
-      "surfaces": [
-        "manager",
-        "codex"
-      ]
-    },
-    {
-      "key": "codexAppStandaloneQuotaUnlock",
-      "builtin": "standalone-quota-unlock",
-      "replaceable": false,
-      "group": "standalone",
-      "control": "bool",
-      "title": "官方额度解锁",
-      "description": "官方订阅额度耗尽后仍可发送，不区分供应商模式；纯官方登录发出的请求仍可能被官方拒绝。只改客户端发送状态，不改变真实用量与计费。重启 Codex 后生效。",
-      "descriptionWhenEnhancementsOn": "增强开启时此能力已自动生效；此开关只在关闭增强后生效。",
-      "masterGated": false,
-      "surfaces": [
-        "manager",
-        "codex"
-      ],
-      "restart": true
     }
   ],
   "builtins": [
@@ -471,19 +366,6 @@
       "title": "模型分组",
       "description": "模型选择器里按供应商分组折叠",
       "group": "plugins"
-    },
-    {
-      "id": "dream-skin",
-      "title": "梦皮主题",
-      "description": "Codex 窗口的梦皮主题与壁纸",
-      "group": "appearance",
-      "setting": "codexAppDreamSkinEnabled"
-    },
-    {
-      "id": "instance-identity",
-      "title": "多开身份提示",
-      "description": "多开实例顶部显示实例名（用公开拓展接口写成）",
-      "group": "appearance"
     },
     {
       "id": "weixin-desktop-sync",

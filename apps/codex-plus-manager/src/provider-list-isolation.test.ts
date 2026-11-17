@@ -82,3 +82,9 @@ test("non-default aggregate members remain deletable and are scrubbed",()=>{
   const next=ctx.removeRelayProfile(form,"unused");
   assert.deepEqual(next.relayProfiles[2].aggregate.members.map((m:any)=>m.profileId),["member"]);
 });
+test("builtin official-direct provider cannot be deleted even when inactive",()=>{
+  const form=fixture();
+  form.relayProfiles.unshift({id:"official-direct",name:"官方直连",relayMode:"official",officialMixApiKey:false,protocol:"responses"});
+  assert.match(ctx.relayProfileDeleteIssue(form,"official-direct"),/官方直连/);
+  assert.equal(ctx.removeRelayProfile(form,"official-direct"),form);
+});

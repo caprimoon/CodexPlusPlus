@@ -30,12 +30,10 @@ test("feature switch cards keep their own height and expanded blocks take a full
     /grid-column:\s*1\s*\/\s*-1/,
   );
 
-  // 原「Codex 用量挂件」（含余额配置）已移出增强页，改为独立的「Agent 桌宠」页。
-  const pet = catalog.groups.find((group) => group.title === "桌宠与活动");
-  assert.ok(pet);
-  const petKeys = catalog.items.filter((item) => item.group === pet.id).map((item) => item.key);
-  assert.ok(petKeys.includes("codexAppActivityOverlayRight"));
-  assert.ok(!petKeys.includes("codexAppWhaleWidgetEnabled"), "Codex 用量挂件不再属于增强页");
+  // 原「桌宠与活动」「下一步建议」「外观」「独立模式」已从内置拓展完全移除。
+  for (const title of ["桌宠与活动", "下一步建议", "外观", "独立模式"]) {
+    assert.equal(catalog.groups.find((group) => group.title === title), undefined, `${title} 应已移除`);
+  }
   const enhance = app.slice(app.indexOf("function EnhanceScreen("), app.indexOf("function StandaloneModeGroup("));
   assert.doesNotMatch(enhance, /Codex 用量挂件|WhaleBalanceSettingsFields/);
 });

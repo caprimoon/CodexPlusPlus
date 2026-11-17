@@ -245,9 +245,7 @@ pub fn run() {
             settings.helper_max_request_body_bytes(),
         );
         if let Err(error) = codex_plus_core::dream_skin::sync_default_dream_skin_base_theme(
-            settings.enhancements_enabled
-                && settings.codex_app_dream_skin_enabled
-                && !settings.codex_app_dream_skin_paused,
+            false,
             &settings.codex_app_dream_skin_theme_config,
         ) {
             let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
@@ -668,7 +666,7 @@ pub fn run() {
             match event {
                 tauri::RunEvent::Opened { urls } => {
                     for url in urls {
-                        if handle_dream_skin_url(url.as_str()) || handle_provider_import_url(url.as_str()) {
+                        if handle_provider_import_url(url.as_str()) {
                             show_main_window(app_handle);
                         }
                     }
@@ -717,28 +715,6 @@ pub fn handle_provider_import_url(url: &str) -> bool {
                 serde_json::json!({
                     "error": error.to_string()
                 }),
-            );
-            false
-        }
-    }
-}
-
-pub fn handle_dream_skin_url(url: &str) -> bool {
-    if !url.starts_with("dreamskin://") {
-        return false;
-    }
-    match codex_plus_core::dream_skin_community::save_pending_community_link(url) {
-        Ok(version_id) => {
-            let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
-                "manager.dream_skin_link.pending",
-                serde_json::json!({ "versionId": version_id }),
-            );
-            true
-        }
-        Err(error) => {
-            let _ = codex_plus_core::diagnostic_log::append_diagnostic_log(
-                "manager.dream_skin_link.failed",
-                serde_json::json!({ "error": error.to_string() }),
             );
             false
         }

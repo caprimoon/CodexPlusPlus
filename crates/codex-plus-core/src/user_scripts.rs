@@ -491,6 +491,77 @@ impl UserScriptManager {
         Ok(config)
     }
 
+    /// 首次预装外部拓展包时登记默认启停状态（不覆盖用户已有开关）。
+    pub fn seed_default_script(&self, key: &str, default_enabled: bool) -> anyhow::Result<()> {
+        let _guard = self.config_lock.lock().unwrap();
+        let mut config = self.load_config_unlocked();
+        let inserted = !config.scripts.contains_key(key);
+        config.scripts.entry(key.to_string()).or_insert(default_enabled);
+        if inserted {
+            self.save_config_unlocked(&config)?;
+        }
+        Ok(())
+    }
+
+    /// 首次预装市场脚本时登记默认启停状态与市场元数据（不覆盖用户已有记录）。
+    pub fn seed_default_market_script(
+        &self,
+        script: &MarketScript,
+        default_enabled: bool,
+    ) -> anyhow::Result<()> {
+        let _guard = self.config_lock.lock().unwrap();
+        let mut config = self.load_config_unlocked();
+        let key = format!("user:{}", market_script_filename(&script.id));
+        let mut changed = false;
+        if !config.scripts.contains_key(&key) {
+            config.scripts.insert(key.clone(), default_enabled);
+            changed = true;
+        }
+        if !config.market.contains_key(&key) {
+            config.market.insert(
+                key,
+                MarketScriptInstall {
+                    id: script.id.clone(),
+                    name: script.name.clone(),
+                    version: script.version.clone(),
+                    script_url: script.script_url.clone(),
+                    homepage: script.homepage.clone(),
+                    installed_at: current_unix_timestamp_string(),
+                },
+            );
+            changed = true;
+        }
+        if changed {
+            self.save_config_unlocked(&config)?;
+        }
+        Ok(())
+    }
+
+    /// 从 user_scripts.json 中清除已下线的官方默认 bundled 拓展残留记录。
+    pub fn purge_retired_bundled_entries(&self) -> anyhow::Result<bool> {
+        let _guard = self.config_lock.lock().unwrap();
+        let mut config = self.load_config_unlocked();
+        let mut changed = false;
+        for key in crate::bundled_extensions::RETIRED_BUNDLED_KEYS {
+            if config.scripts.remove(*key).is_some() {
+                changed = true;
+            }
+            if config.claude_scripts.remove(*key).is_some() {
+                changed = true;
+            }
+            if config.configs.remove(*key).is_some() {
+                changed = true;
+            }
+            if config.market.remove(*key).is_some() {
+                changed = true;
+            }
+        }
+        if changed {
+            self.save_config_unlocked(&config)?;
+        }
+        Ok(changed)
+    }
+
     /// 启用中、清单无误的拓展包声明的 Codex 钩子，附带拓展 id。全局关闭时为空。
     pub fn enabled_extension_hooks(&self) -> anyhow::Result<Vec<(String, ExtensionHook)>> {
         let config = self.load_config();
@@ -1957,25 +2028,25 @@ pub(crate) fn default_user_script_manager_for_settings(settings_path: PathBuf) -
     let manager = UserScriptManager::new(builtin_dir, config_dir.join("user_scripts"), config_dir.join("user_scripts.json"))
         .with_settings_path(settings_path.clone())
         .with_bundled_dir(bundled_dir.clone());
-    // 每个进程第一次用到时写出官方拓展包、迁移旧的内置桌宠 / 打字特效 / 背景图 / 用量状态栏 / 请求状态条设置；失败只记日志，不影响别的拓展。
+    // 每个进程第一次用到时清理已下线的官方默认拓展包，并首次预装动态壁纸（默认停用）与 TokenLens for Codex（默认启用）；失败只记日志，不影响别的拓展。
     static BUNDLED_READY: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     BUNDLED_READY.get_or_init(|| {
+        let _ = settings_path;
         if let Err(error) = crate::bundled_extensions::materialize(&bundled_dir) {
             let _ = crate::diagnostic_log::append_diagnostic_log(
-                "bundled_extensions.materialize_failed",
+                "bundled_extensions.purge_failed",
                 json!({ "error": format!("{error:#}") }),
             );
         }
-        let settings = crate::settings::SettingsStore::new(settings_path).load().unwrap_or_default();
-        if let Err(error) = manager.migrate_bundled_agent_pet(&settings) {
+        if let Err(error) = manager.purge_retired_bundled_entries() {
             let _ = crate::diagnostic_log::append_diagnostic_log(
-                "bundled_extensions.agent_pet_migration_failed",
+                "bundled_extensions.purge_config_failed",
                 json!({ "error": format!("{error:#}") }),
             );
         }
-        if let Err(error) = manager.migrate_bundled_builtins(&settings) {
+        if let Err(error) = crate::bundled_extensions::seed_default_extensions(&config_dir, &manager) {
             let _ = crate::diagnostic_log::append_diagnostic_log(
-                "bundled_extensions.builtin_migration_failed",
+                "bundled_extensions.seed_defaults_failed",
                 json!({ "error": format!("{error:#}") }),
             );
         }
@@ -2503,7 +2574,7 @@ const EXTENSION_MANAGER_PAGE_MAX_BYTES: u64 = 1024 * 1024;
 pub const MANAGER_REPLACEABLE_PAGES: &[&str] = &[
     "hub", "gatewayProviders", "gateway", "gatewayRouting", "gatewayUsage", "gatewaySettings", "requestLog",
     "overview", "relay", "multiLaunch", "relayEnvironment", "claude", "sessions", "context", "skills", "weixin",
-    "dreamSkin", "pluginMarket", "recommendations", "agentCache", "agentCollaboration", "computerUse",
+    "pluginMarket", "recommendations", "agentCache", "agentCollaboration", "computerUse",
 ];
 /// 拓展的设置页 / 管理器面板经 `codexPlusManager.call(route, payload)` 能调的数据路由（还要清单声明）。
 pub const EXTENSION_PAGE_ROUTES: &[&str] = &crate::agent_pet::ROUTES;

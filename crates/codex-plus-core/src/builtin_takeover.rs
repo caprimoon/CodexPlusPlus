@@ -74,7 +74,6 @@ pub const RUST_SIDE_BUILTINS: &[&str] = &[
     "disable-work-view",
     "force-chinese-locale",
     "history-turn-recovery",
-    "pet-real-mouse",
 ];
 
 fn switch_off(settings: &mut BackendSettings, id: &str) {
@@ -88,7 +87,6 @@ fn switch_off(settings: &mut BackendSettings, id: &str) {
         "disable-work-view" => settings.codex_app_disable_work_view = false,
         "force-chinese-locale" => settings.codex_app_force_chinese_locale = false,
         "history-turn-recovery" => settings.codex_app_history_turn_recovery = false,
-        "pet-real-mouse" => settings.codex_app_pet_real_mouse_look = false,
         _ => {}
     }
 }

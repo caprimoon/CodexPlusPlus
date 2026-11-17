@@ -67,20 +67,22 @@ test("全部、单 Agent 和增强模式的实际导览步骤均有英文且保�
   checkKeys(keys);
 });
 
-test("App 的模式影响说明、事务保存提示和重新打开引导说明均有英文", () => {
+test("App 的模式影响说明、事务保存提示与官方直连文案均有英文，且通用设置已移除新手引导", () => {
   const tree = source("./App.tsx");
   const keys = emptyKeys();
+  const globalKeys = emptyKeys();
   const visit = (node: ts.Node) => {
     if (ts.isFunctionDeclaration(node) && node.name?.text === "agentFocusDescription") collectCalls(node, keys);
     if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "closeAgentFocus" && node.initializer) collectCalls(node.initializer, keys);
     if (ts.isFunctionDeclaration(node) && node.name?.text === "GlobalSettingsScreen") {
-      const settings = emptyKeys();
-      collectCalls(node, settings);
-      for (const key of settings.plain) if (/引导|导览/.test(key)) keys.plain.add(key);
+      collectCalls(node, globalKeys);
     }
     ts.forEachChild(node, visit);
   };
   visit(tree);
-  assert.ok(keys.plain.has("查看各个核心入口的功能导览。"));
+  for (const key of globalKeys.plain) assert.ok(!/新手引导|重新打开引导/.test(key), `${key} should be removed`);
+  for (const extra of ["官方直连", "「官方直连」是系统默认直连供应商，不可删除。", "系统内置官方直连固定使用 ChatGPT 官方账号登录。"]) {
+    keys.plain.add(extra);
+  }
   checkKeys(keys);
 });

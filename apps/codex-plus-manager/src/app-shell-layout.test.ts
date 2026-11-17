@@ -90,9 +90,10 @@ test("启动 Codex 一眼可见：Codex 页面顶栏最右侧主按钮与侧栏�
   assert.equal(entry.match(/<CodexLaunchButton\b/g)?.length, 1, "启动按钮只在顶栏出现一次");
   const codexRoutes = text.slice(text.indexOf("const routes: Array"), text.indexOf("const navigationSections")).split("\n")
     .filter((line) => line.includes('tool: "codex"')).map((line) => /id: "(\w+)"/.exec(line)?.[1]);
-  for (const id of ["relay", "multiLaunch", "enhance", "dreamSkin", "userScripts", "pluginMarket", "weixin", "agentSettings"]) {
+  for (const id of ["relay", "multiLaunch", "enhance", "userScripts", "pluginMarket", "weixin", "agentSettings"]) {
     assert.ok(codexRoutes.includes(id), `${id} 属于 Codex，顶栏要显示启动按钮`);
   }
+  assert.ok(!codexRoutes.includes("dreamSkin"), "已移除皮肤管理路由");
   const sidebar = functionSource("AppSidebar");
   assert.match(sidebar, /className="cx-side-codex-dock"/);
   assert.match(sidebar, /disabled=\{codexRun\.busy \|\| \(!codexRun\.running && Boolean\(codexRun\.unavailableReason\)\)\}/);
@@ -151,6 +152,8 @@ test("扁平侧栏按核心工作区（概览、连接与供应商、MCP 与 Ski
   const sidebar = functionSource("AppSidebar");
   assert.match(sidebar, /routeEntry\("overview"\)/);
   assert.match(sidebar, /routeEntry\("userScripts", \{ key: "extensions", icon: Blocks, tour: "management" \}\)/);
+  assert.ok(sidebar.indexOf('routeEntry("enhance")') < sidebar.indexOf('routeEntry("userScripts"'), "内置拓展排在外部拓展上方");
+  assert.doesNotMatch(sidebar, /routeEntry\("dreamSkin"\)|皮肤管理/);
   assert.ok(sidebar.indexOf('routeEntry("overview")') < sidebar.indexOf('key: "customize"'), "工作区分组排在拓展与增强之前");
   assert.match(sidebar, /match: customizeRoutes/);
   assert.doesNotMatch(sidebar, /"聚合网关"|gatewayEntries|Agent 增强/);
@@ -297,7 +300,7 @@ test("多开页可以直接编辑、删除供应商：删除先查占用再二�
   // 编辑 / 删除收进行尾三点菜单；网关托管项没有菜单，整行也不可点。
   assert.match(screen, /\{gatewayManaged \? null : \(\r?\n\s+<Menu label=/);
   assert.match(screen, /onClick=\{gatewayManaged \? undefined : \(\) => setDetailProfileId\(profile\.id\)\}/);
-  assert.match(screen, /disabled=\{normalized\.relayProfiles\.length <= 1\}/);
+  assert.match(screen, /disabled=\{isOfficialDirectRelayProfile\(profile\) \|\| normalized\.relayProfiles\.length <= 1\}/);
   // 使用中的供应商给出标记；导入入口指到旧版供应商页。
   assert.match(screen, /\{active \? <CxBadge>\{t\("使用中"\)\}<\/CxBadge> : null\}/);
   assert.match(screen, /onClick=\{onOpenRelay\}/);
@@ -354,27 +357,17 @@ test("Computer Use 工作原理图与网关总览同一套三列拓扑", () => {
   assert.match(hub, /export function HubTopology\(/);
 });
 
-test("首次导览可直接从通用设置重开，已移除模式问卷、入门清单与更新弹窗", () => {
+test("通用设置已移除入门新手引导，以及模式问卷、入门清单与更新弹窗", () => {
   const app = functionSource("App");
-  assert.doesNotMatch(app, /<AgentFocusDialog|<OnboardingSetup|<UpdateDialog/);
-  assert.match(app, /\{tourOpen \? <OnboardingTour focus=\{agentFocus\} onClose=\{closeTour\} \/> : null\}/);
-  assert.match(app, /window\.localStorage\.setItem\(TOUR_STORAGE_KEY, String\(TOUR_VERSION\)\)/);
+  assert.doesNotMatch(app, /<AgentFocusDialog|<OnboardingSetup|<OnboardingTour|<UpdateDialog/);
+  assert.doesNotMatch(functionSource("GlobalSettingsScreen"), /onOpenTour|新手引导|重新打开引导/);
   assert.match(functionSource("initialSetupOpen"), /return false;/);
-  assert.match(app, /if \(tourOpen\) return;\s*setPaletteOpen/);
-  assert.match(functionSource("GlobalSettingsScreen"), /onClick=\{onOpenTour\}/);
-  const model = readSource("./onboarding-model.ts");
-  const sidebar = functionSource("AppSidebar");
-  for (const match of model.matchAll(/target: "([^"]+)"/g)) {
-    const target = match[1];
-    const anchored = target.startsWith("nav-") ? sidebar.includes(`tour: "${target}"`) : sidebar.includes(`data-tour="${target}"`) || sidebar.includes(`tour: "${target}"`);
-    assert.ok(anchored, `引导目标 ${target} 在侧栏里没有锚点`);
-  }
 });
 
-test("关于页与设置导航不再渲染更新区块与配置体检，并展示定制版本与 fork 仓库地址", () => {
+test("关于页移除反馈与社区和 Codex 版本，仅保留精简版标识与 fork 项目地址", () => {
   const about = functionSource("AboutScreen");
-  assert.doesNotMatch(about, /app-settings-update|checkUpdate|performUpdate|BigPizzaV3\/CodexPlusPlus/);
-  assert.match(about, /Codex\+\+（capriMoon精简基于\$\{baseVersion\}）/);
+  assert.doesNotMatch(about, /app-settings-update|checkUpdate|performUpdate|BigPizzaV3\/CodexPlusPlus|Codex 版本|反馈与社区|discord\.gg|t\.me\/CodexPlusPlus|\/issues/);
+  assert.match(about, /Codex\+\+（基于\$\{baseVersion\}精简）/);
   assert.match(about, /github\.com\/caprimoon\/CodexPlusPlus/);
   assert.doesNotMatch(functionSource("GlobalSettingsScreen"), /<ConfigDoctorPanel\b|onOpenAgentFocus|使用模式/);
 });
