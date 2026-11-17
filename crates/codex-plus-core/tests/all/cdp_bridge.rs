@@ -132,7 +132,16 @@ fn injection_script_omits_stepwise_runtime_when_disabled() {
     let script = assets::injection_script_with_settings(57321, &settings);
 
     assert!(!script.contains("const API_KEY = \"__codexStepwisePanel\";"));
-    assert_codex_setting_row(&script, "codexAppStepwiseEnabled", "stepwise");
+    assert!(script.contains("stepwise: \"codexAppStepwiseEnabled\""));
+    let catalog = codex_plus_core::settings_catalog::enhancement_settings_catalog().unwrap();
+    assert!(
+        catalog["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["key"] != "codexAppStepwiseEnabled"),
+        "codexAppStepwiseEnabled 已从内置拓展清单移除"
+    );
 }
 
 /// Codex 设置页的设置行按 /settings/catalog 清单生成：断言清单让该项在 Codex 显示，
@@ -241,9 +250,16 @@ fn pet_real_mouse_settings_are_shown_on_windows_and_mac_in_injected_ui() {
     assert!(script.contains("codexPlusIsMacPlatform"));
     assert!(script.contains(r#"/\bWindows\b/i.test(navigator.userAgent || "")"#));
     assert!(script.contains(r#"/\bMacintosh\b/i.test(navigator.userAgent || "")"#));
-    // 平台限制写在设置项清单里，注入页按当前平台过滤。
-    let item = assert_codex_setting_row(&script, "codexAppPetRealMouseLook", "petRealMouseLook");
-    assert_eq!(item["platforms"], json!(["windows", "macos"]));
+    // 桌宠与活动分组已从内置拓展清单移除；注入页平台过滤能力保留给其余跨平台设置项。
+    let catalog = codex_plus_core::settings_catalog::enhancement_settings_catalog().unwrap();
+    assert!(
+        catalog["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["key"] != "codexAppPetRealMouseLook"),
+        "codexAppPetRealMouseLook 已从内置拓展清单移除"
+    );
     assert!(script.contains(
         r#"codexPlusIsWindowsPlatform ? "windows" : codexPlusIsMacPlatform ? "macos" : "linux""#
     ));
@@ -1171,7 +1187,6 @@ fn injection_script_menu_exposes_stepwise_switch_and_syncs_panel() {
     assert!(script.contains("stepwise: false"));
     assert!(script.contains("stepwise: \"codexAppStepwiseEnabled\""));
     assert!(script.contains("Stepwise"));
-    assert_codex_setting_row(&script, "codexAppStepwiseEnabled", "stepwise");
     assert!(script.contains("function syncStepwisePanel"));
     assert!(script.contains("window.__codexStepwisePanel?.syncSettings"));
     // 开关改了由内置拓展「下一步建议」订阅 settings/changed 让悬浮球重算，写进后端后再重读设置。

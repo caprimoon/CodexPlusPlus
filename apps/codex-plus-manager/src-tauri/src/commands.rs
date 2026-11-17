@@ -11139,21 +11139,28 @@ fn settings_payload_value() -> Result<SettingsPayload, (anyhow::Error, SettingsP
         .to_string_lossy()
         .to_string();
     match store.load() {
-        Ok(settings) => Ok(SettingsPayload {
-            revision: settings.settings_revision.clone(),
-            settings,
-            settings_path,
-            user_scripts: user_script_inventory(),
-        }),
-        Err(error) => Err((
-            error,
-            SettingsPayload {
-                revision: String::new(),
-                settings: BackendSettings::default(),
+        Ok(mut settings) => {
+            codex_plus_core::settings::ensure_official_direct_profile(&mut settings);
+            Ok(SettingsPayload {
+                revision: settings.settings_revision.clone(),
+                settings,
                 settings_path,
                 user_scripts: user_script_inventory(),
-            },
-        )),
+            })
+        }
+        Err(error) => {
+            let mut settings = BackendSettings::default();
+            codex_plus_core::settings::ensure_official_direct_profile(&mut settings);
+            Err((
+                error,
+                SettingsPayload {
+                    revision: String::new(),
+                    settings,
+                    settings_path,
+                    user_scripts: user_script_inventory(),
+                },
+            ))
+        }
     }
 }
 

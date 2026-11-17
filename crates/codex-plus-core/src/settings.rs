@@ -2272,7 +2272,6 @@ pub fn ensure_official_direct_profile(settings: &mut BackendSettings) {
         existing.relay_mode = RelayMode::Official;
         existing.official_mix_api_key = false;
         existing.protocol = RelayProtocol::Responses;
-        existing.aggregate = None;
         if existing.name.trim().is_empty() {
             existing.name = "官方直连".to_string();
         }
