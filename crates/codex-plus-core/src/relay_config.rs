@@ -6994,9 +6994,12 @@ fn remove_openai_api_key_from_auth_contents(auth_contents: &str) -> anyhow::Resu
     let Some(object) = value.as_object_mut() else {
         anyhow::bail!("auth.json 必须是 JSON 对象");
     };
-    let _ = strip_api_key_from_auth_object(object);
+    let changed = strip_api_key_from_auth_object(object);
     if object.is_empty() {
         return Ok(String::new());
+    }
+    if !changed {
+        return Ok(auth_contents.to_string());
     }
     Ok(format!("{}\n", serde_json::to_string_pretty(&value)?))
 }
