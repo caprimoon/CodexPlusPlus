@@ -449,14 +449,79 @@
        * 颜色取自当前主题下真实未选中项（见 syncCodexPlusRailNativeSelection），
        * 主题切换时下次同步会重算。
        */
-      html[data-codex-plus-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] {
+      html[data-codex-plus-page-open]:not([${codexPlusSettingsPageOpenAttr}="true"]) nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] {
         color: var(--codex-plus-rail-dim, var(--codex-plus-text-tertiary, currentColor)) !important;
       }
-      html[data-codex-plus-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]::before {
+      html[data-codex-plus-page-open]:not([${codexPlusSettingsPageOpenAttr}="true"]) nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"]::before {
         opacity: 0 !important;
       }
-      html[data-codex-plus-page-open] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] * {
+      html[data-codex-plus-page-open]:not([${codexPlusSettingsPageOpenAttr}="true"]) nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] * {
         color: var(--codex-plus-rail-dim, var(--codex-plus-text-tertiary, currentColor)) !important;
+      }
+      /*
+       * 内嵌在 Codex 设置页右侧内容区时：保留左侧设置栏，压制当前原生设置项的选中底色，
+       * 并点亮 Codex++ 分组下正在打开的「内置拓展」或「外部拓展」按钮。
+       */
+      html[${codexPlusSettingsPageOpenAttr}="true"] [data-settings-panel-slug][data-codex-plus-suppressed-active="true"]:not(:hover),
+      html[${codexPlusSettingsPageOpenAttr}="true"] [data-settings-panel-slug][aria-current="page"]:not(:hover),
+      html[${codexPlusSettingsPageOpenAttr}="true"] [data-settings-panel-slug][aria-selected="true"]:not(:hover),
+      html[${codexPlusSettingsPageOpenAttr}="true"] [data-settings-panel-slug][data-selected]:not(:hover),
+      html[${codexPlusSettingsPageOpenAttr}="true"] [data-settings-panel-slug][data-active="true"]:not(:hover),
+      html[${codexPlusSettingsPageOpenAttr}="true"] [data-settings-panel-slug][data-state="active"]:not(:hover) {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: var(--codex-plus-settings-nav-dim, inherit) !important;
+      }
+      #${codexPlusSettingsSectionId}[hidden] {
+        display: none !important;
+      }
+      #${codexPlusSettingsSectionId}.codex-plus-settings-nav-section-spaced {
+        margin-bottom: 16px;
+      }
+      #${codexPlusSettingsSectionId} .codex-plus-settings-nav-heading-fallback {
+        padding: 4px 10px 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--codex-plus-text-tertiary);
+      }
+      #${codexPlusSettingsSectionId} .codex-plus-settings-nav-list-fallback {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      #${codexPlusSettingsSectionId} [${codexPlusSettingsNavAttr}] {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+      }
+      #${codexPlusSettingsSectionId} [${codexPlusSettingsNavAttr}][hidden] {
+        display: none !important;
+      }
+      #${codexPlusSettingsSectionId} [${codexPlusSettingsNavAttr}][data-active="true"] {
+        background-color: var(--codex-plus-settings-active-bg, var(--codex-plus-bg-selected)) !important;
+        color: var(--codex-plus-settings-active-color, var(--codex-plus-text)) !important;
+      }
+      #${codexPlusSettingsSectionId} .codex-plus-settings-nav-icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #${codexPlusSettingsSectionId} .codex-plus-settings-nav-icon svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+      .${codexPlusPageClass}[${codexPlusSettingsEmbeddedAttr}="true"] .codex-plus-settings-version-pill {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--codex-plus-text-tertiary);
+        margin-left: 4px;
       }
       /*
        * 页面 overlay 的 left 由 positionCodexPlusPage 按图标栏右边界算好写进来。
@@ -1691,6 +1756,10 @@
       }
       @container codex-plus-discovery (max-width: 600px) {
         .codex-plus-extensions-grid { grid-template-columns: minmax(0, 1fr); }
+      }
+      .${codexPlusPageClass}[${codexPlusSettingsEmbeddedAttr}="true"] .codex-plus-modal-content[data-codex-plus-active-tab="extensions"] .codex-plus-page-nav {
+        width: 220px;
+        flex-basis: 220px;
       }
       @container codex-plus-discovery-page (max-width: 700px) {
         .${codexPlusPageClass} .codex-plus-modal-content[data-codex-plus-active-tab="extensions"] .codex-plus-page-nav { width: 180px; flex-basis: 180px; }

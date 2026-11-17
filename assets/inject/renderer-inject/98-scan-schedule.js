@@ -15,7 +15,7 @@
    */
   function isExtensionUiNode(node) {
     if (!node?.closest) return false;
-    if (node.closest(`[data-codex-plus-ext], .codex-delete-toast, .codex-delete-confirm-overlay, .codex-plus-modal-overlay, .${codexPlusPageClass}, #${codexPlusSidebarNavId}, #${codexPlusRailNavId}, #${codexPlusRailExtensionsId}, #${codexPlusRailNavId} > button, #${codexPlusRailExtensionsId} > button, .${codexServiceTierBadgeClass}, .${sessionShareButtonClass}, .codex-zed-remote-button, .codex-zed-remote-toast, #codex-plus-menu, #${capacityAutoRetryChipId}`)) {
+    if (node.closest(`[data-codex-plus-ext], .codex-delete-toast, .codex-delete-confirm-overlay, .codex-plus-modal-overlay, .${codexPlusPageClass}, #${codexPlusSidebarNavId}, #${codexPlusSettingsSectionId}, [${codexPlusSettingsNavAttr}], #${codexPlusRailNavId}, #${codexPlusRailExtensionsId}, #${codexPlusRailNavId} > button, #${codexPlusRailExtensionsId} > button, .${codexServiceTierBadgeClass}, .${sessionShareButtonClass}, .codex-zed-remote-button, .codex-zed-remote-toast, #codex-plus-menu, #${capacityAutoRetryChipId}`)) {
       return true;
     }
     return isCodexPlusExtensionNode(node);
@@ -163,8 +163,14 @@
     let attempts = 0;
     window.__codexPlusSidebarNavRetryTimer = setInterval(() => {
       attempts += 1;
-      const installed = document.getElementById(codexPlusSidebarNavId)
-        || document.getElementById(codexPlusRailNavId);
+      const rail = document.querySelector(codexPlusRailSelector);
+      const pendingExtensionRail = typeof codexPlusExtensionItems === "function"
+        && typeof codexPlusRegistry !== "undefined"
+        && codexPlusExtensionItems(codexPlusRegistry.navEntries).length > 0
+        && !rail?.querySelector(`[${codexPlusExtensionRailAttribute}]`);
+      const installed = rail
+        ? !pendingExtensionRail
+        : !!document.getElementById(codexPlusSidebarNavId);
       if (installed || attempts > 20) {
         clearInterval(window.__codexPlusSidebarNavRetryTimer);
         window.__codexPlusSidebarNavRetryTimer = null;

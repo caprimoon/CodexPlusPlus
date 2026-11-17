@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         TokenLens for Codex
-// @namespace    tokenlens-for-codex
+// @name         TokenPulse · 吞吐与消耗监控
+// @namespace    token-pulse
 // @version      1.0.5
-// @description  Codex++ throughput, tool, token, cache and usage status line.
+// @description  Codex++ 实时吞吐速度、缓存命中率、累计消耗量与单次调用分析状态栏。
 // @match        app://-/*
 // @run-at       document-start
 // ==/UserScript==
@@ -73,6 +73,7 @@
   const codexPlusUsageMagpieTimeoutMs = 3000;
   const codexPlusUsageActiveTickMs = 1000;
   const codexPlusUsageIdleTickMs = 4000;
+  const codexPlusUsageStaleTickMs = 15_000;
   const codexPlusUsageLiveContextRefreshMs = 2000;
   const codexPlusUsageMaxTurns = 32;
   const codexPlusUsageMaxLiveSamples = 512;
@@ -156,6 +157,7 @@
 
   const codexPlusUsageSvgNs = "http://www.w3.org/2000/svg";
   const codexPlusUsageHitIconPath = "M487.104 113.792c42.688 0 83.84 6.272 122.688 18.048L580.8 186.432a362.688 362.688 0 1 0 255.936 253.696l54.528-28.8a423.104 423.104 0 1 1-404.16-297.472z m0 241.792h4.032l-34.048 64.256a120.96 120.96 0 1 0 148.096 143.104l63.104-33.408 0.128 7.424a181.312 181.312 0 1 1-181.312-181.312zM721.6 79.872a12.8 12.8 0 0 1 5.504 5.632l68.8 140.416 140.288 68.736a12.8 12.8 0 0 1 0.384 22.784L479.104 560a12.8 12.8 0 0 1-17.28-17.28L704.256 85.248a12.8 12.8 0 0 1 17.28-5.312z m-7.744 116.096l-126.08 237.888 237.888-126.08-56.32-27.584-18.624-9.088-9.088-18.56-27.776-56.576z";
+  const codexPlusUsageConsumptionIconPath = "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z";
   const codexPlusUsageMeterGaugePath = "M992.633263 971.829895a40.421053 40.421053 0 1 1-56.589474-57.344 477.776842 477.776842 0 0 0 141.850948-339.536842 485.052632 485.052632 0 0 0-970.105263 0 477.776842 477.776842 0 0 0 141.904842 339.536842 40.421053 40.421053 0 1 1-57.45179 56.966737A560.613053 560.613053 0 0 1 592.842105 13.473684c310.810947 0 563.469474 250.610526 565.894737 561.475369a557.810526 557.810526 0 0 1-166.103579 396.880842zM67.368421 660.210526a40.421053 40.421053 0 1 1 0-80.842105h80.842105a40.421053 40.421053 0 1 1 0 80.842105h-80.842105z m970.105263 0a40.421053 40.421053 0 1 1 0-80.842105h80.842105a40.421053 40.421053 0 1 1 0 80.842105h-80.842105zM200.380632 244.250947a40.582737 40.582737 0 1 1 57.344-57.344l40.421052 40.421053a40.582737 40.582737 0 1 1-57.344 57.344l-40.421052-40.421053z m687.157894 687.157895a40.582737 40.582737 0 0 1 57.344-57.344l40.421053 40.421053a40.582737 40.582737 0 0 1-57.344 57.344l-40.421053-40.421053z m40.421053-744.501895a40.582737 40.582737 0 1 1 57.344 57.344l-40.421053 40.421053a40.582737 40.582737 0 1 1-57.344-57.344l40.421053-40.421053z m-687.157895 687.157895a40.582737 40.582737 0 0 1 57.344 57.344l-40.421052 40.421053a40.582737 40.582737 0 0 1-57.344-57.344l40.421052-40.421053zM552.421053 94.315789a40.421053 40.421053 0 1 1 80.842105 0v80.842106a40.421053 40.421053 0 1 1-80.842105 0v-80.842106z";
   const codexPlusUsageMeterNeedlePath = "m148.749473 436.924632l-40.421052 10.940632c-29.642105 7.006316-58.745263 16.330105-86.878316 27.917473a52.978526 52.978526 0 0 0-15.36 67.476211 35.947789 35.947789 0 0 0 52.11621 16.976842 837.093053 837.093053 0 0 0 88.549053-94.962526l9.701053-10.940632 20.156631-24.252632-27.863579 6.844632z m-61.44-67.47621l40.421053-10.940632c31.959579-8.084211 65.913263-16.168421 99.866947-23.821474l32.714106-7.653052 12.934736-2.856421a40.421053 40.421053 0 0 1 40.421053 64.673684c0 1.994105-4.042105 5.658947-8.08421 10.13221l-21.396211 26.677895c-22.635789 27.486316-45.271579 54.972632-67.098947 80.842105l-9.701053 11.317895a684.732632 684.732632 0 0 1-106.711579 110.69979 116.789895 116.789895 0 0 1-166.965895-47.696843 133.820632 133.820632 0 0 1 43.654737-173.379368 489.903158 489.903158 0 0 1 109.945263-37.995789z";
 
@@ -347,11 +349,14 @@
       #${codexPlusUsageStatusLineId} .codex-plus-usage-speed:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
       #${codexPlusUsageStatusLineId} .codex-plus-usage-speed:focus-visible{box-shadow:0 0 0 2px color-mix(in srgb,currentColor 30%,transparent)}
       #${codexPlusUsageStatusLineId} .codex-plus-usage-value,
-      #${codexPlusUsageStatusLineId} .codex-plus-usage-hit{font-size:12px;line-height:17px;font-weight:430}
+      #${codexPlusUsageStatusLineId} .codex-plus-usage-hit,
+      #${codexPlusUsageStatusLineId} .codex-plus-usage-consumption{font-size:12px;line-height:17px;font-weight:430}
       #${codexPlusUsageStatusLineId} .codex-plus-usage-speed svg{flex:0 0 auto;width:14px;height:13px;opacity:.8}
       #${codexPlusUsageStatusLineId} .codex-plus-usage-speed [data-role="needle"]{transform-box:view-box;transform-origin:592.842105px 575.157895px;transition:transform .3s cubic-bezier(.22,1,.36,1);will-change:transform}
-      #${codexPlusUsageStatusLineId} .codex-plus-usage-hit{display:inline-flex;align-items:center;gap:3px;opacity:1;white-space:nowrap}
-      #${codexPlusUsageStatusLineId} .codex-plus-usage-hit::before{content:"·";margin-right:5px;opacity:.55}
+      #${codexPlusUsageStatusLineId} .codex-plus-usage-hit,
+      #${codexPlusUsageStatusLineId} .codex-plus-usage-consumption{display:inline-flex;align-items:center;gap:3px;opacity:1;white-space:nowrap}
+      #${codexPlusUsageStatusLineId} .codex-plus-usage-hit::before,
+      #${codexPlusUsageStatusLineId} .codex-plus-usage-consumption::before{content:"·";margin-right:5px;opacity:.55}
       #codex-plus-throughput-popover{position:fixed;z-index:2147483400;box-sizing:border-box;width:min(280px,calc(100vw - 24px));max-height:min(76vh,560px);overflow:auto;padding:12px 10px 10px;border:1px solid #28243a;border-radius:4px;background:#181524;color:#e2e8f0;box-shadow:0 14px 38px rgba(0,0,0,.32);font:12px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;pointer-events:auto;scrollbar-width:thin;color-scheme:dark;transition:background-color .15s ease,border-color .15s ease,color .15s ease}
       #codex-plus-throughput-popover[hidden]{display:none}
       .codex-plus-throughput-popover-head{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px;min-height:20px;margin-bottom:8px;line-height:normal}
@@ -501,6 +506,23 @@
     svg.setAttribute("width", String(width));
     svg.setAttribute("height", String(height));
     svg.setAttribute("fill", "currentColor");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(codexPlusUsageSvgNs, "path");
+    path.setAttribute("d", pathData);
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function codexPlusUsageStrokeIcon(pathData, viewBox, width, height, strokeWidth = 1.9) {
+    const svg = document.createElementNS(codexPlusUsageSvgNs, "svg");
+    svg.setAttribute("viewBox", viewBox);
+    svg.setAttribute("width", String(width));
+    svg.setAttribute("height", String(height));
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", String(strokeWidth));
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("aria-hidden", "true");
     const path = document.createElementNS(codexPlusUsageSvgNs, "path");
     path.setAttribute("d", pathData);
@@ -883,12 +905,17 @@
     if (!turn) return turn;
     const at = Number.isFinite(now) ? now : Date.now();
     const data = codexPlusUsageEventData(payload);
-    turn.lastEventAt = at;
+    const touchEvent = (timestamp = at) => {
+      if (turn.completedAt == null && Number.isFinite(timestamp)) {
+        turn.lastEventAt = Math.max(turn.lastEventAt ?? 0, timestamp);
+      }
+    };
 
     if (method === "item/agentMessage/delta"
         || method === "item/reasoning/textDelta"
         || method === "item/reasoning/summaryTextDelta") {
       if (typeof data.delta === "string" && data.delta.length > 0) {
+        touchEvent();
         if (turn.firstTokenAt == null) turn.firstTokenAt = at;
         if (turn.decodeStartedAt == null) turn.decodeStartedAt = at;
       }
@@ -896,6 +923,7 @@
     }
 
     if (method === "hook/started" || method === "hook/completed") {
+      touchEvent();
       const run = data.run || {};
       const id = `hook:${run.id || `${run.eventName || "hook"}:${run.startedAt || at}`}`;
       const hookName = codexPlusUsageFirstString(run, ["eventName", "event_name"]);
@@ -920,6 +948,7 @@
     if (method === "rawResponseItem/completed") {
       const item = data.item;
       if (codexPlusUsageItemType(item?.type) === "customtoolcall") {
+        touchEvent();
         const id = item.call_id || item.callId || item.id || `custom:${turn.toolDetails.length}`;
         codexPlusUsageRecordTool(turn, id, codexPlusUsageAttributedToolKind(turn, { ...item, type: item.name || item.type }));
       }
@@ -927,6 +956,7 @@
     }
 
     if (method === "item/started") {
+      touchEvent();
       const item = data.item;
       if (item?.id && codexPlusUsageIsToolItem(item.type)) {
         codexPlusUsageFlushDecode(turn, at);
@@ -939,6 +969,7 @@
     }
 
     if (method === "item/completed") {
+      touchEvent();
       const item = data.item;
       if (item?.id && codexPlusUsageIsToolItem(item.type)) {
         const active = turn.activeTools.get(item.id);
@@ -1025,6 +1056,7 @@
         if (turn.appliedTotals.size > 256) turn.appliedTotals.delete(turn.appliedTotals.values().next().value);
       }
       if (changed) {
+        touchEvent();
         turn.usageSamples += 1;
         codexPlusUsageRememberCallSample(
           turn,
@@ -1050,6 +1082,7 @@
       codexPlusUsageFlushDecode(turn, end);
       codexPlusUsageCloseActiveTools(turn, end);
       turn.completedAt = Math.max(turn.startedAt, end);
+      turn.lastEventAt = turn.completedAt;
       turn.status = String(data.turn?.status || "completed");
       return turn;
     }
@@ -1097,10 +1130,24 @@
     return codexPlusUsageDecodeSpeed(output, decodeMs);
   }
 
+  // 未收到 turn/completed 时（例如切换会话漏收结束通知），在无活跃事件或解码超时后冻结在最后事件时刻，避免速度随时间持续衰减。
+  function codexPlusUsageTurnEffectiveEnd(turn, now) {
+    if (!turn) return Number.isFinite(now) ? now : Date.now();
+    if (turn.completedAt != null) return turn.completedAt;
+    const at = Number.isFinite(now) ? now : Date.now();
+    const hasActiveTools = (turn.activeTools?.size || 0) > 0;
+    const lastEventAt = Number.isFinite(turn.lastEventAt) && turn.lastEventAt >= 0 ? turn.lastEventAt : null;
+    const staleDecode = turn.decodeStartedAt != null && lastEventAt != null && at - lastEventAt > 5000;
+    const idleNoEvent = !hasActiveTools
+      && lastEventAt != null
+      && (turn.decodeStartedAt == null || staleDecode);
+    return idleNoEvent ? Math.max(turn.startedAt, Math.min(at, lastEventAt)) : at;
+  }
+
   // 主指标优先使用逐调用解码窗口；整轮墙钟只在历史数据缺少调用时间轴时兜底。
   function codexPlusUsageModelWindowSpeed(turn, now) {
     if (!turn) return null;
-    const end = turn.completedAt ?? (Number.isFinite(now) ? now : Date.now());
+    const end = codexPlusUsageTurnEffectiveEnd(turn, now);
     const settledCalls = Array.isArray(turn.settledCalls) ? turn.settledCalls : [];
     if (settledCalls.length) {
       const settled = codexPlusUsageSettledSpeed(
@@ -1198,8 +1245,7 @@
 
   function codexPlusUsageTurnSnapshot(turn, now) {
     if (!turn) return null;
-    const at = Number.isFinite(now) ? now : Date.now();
-    const end = turn.completedAt ?? at;
+    const end = codexPlusUsageTurnEffectiveEnd(turn, now);
     const turnMs = Math.max(0, end - turn.startedAt);
     let decodeMs = turn.decodeMs;
     if (turn.decodeStartedAt != null) decodeMs += Math.max(0, end - turn.decodeStartedAt);
@@ -1357,6 +1403,7 @@
       output: total.output + sample.output,
       total: total.total + sample.total,
     }), { input: 0, cached: 0, output: 0, total: 0 });
+    const previousOutput = live?.turnId === turnId ? live.outputTokens : 0;
     const turn = live?.turnId === turnId
       ? live
       : codexPlusUsageCreateTurn(threadId, turnId, attempts[0].observedAt);
@@ -1381,6 +1428,17 @@
       turn.completedAt = attempts[attempts.length - 1].observedAt;
       turn.lastEventAt = turn.completedAt;
       turn.status = "completed";
+    } else {
+      if (!turn.observedFromStart && attempts[0].observedAt < turn.startedAt) {
+        turn.startedAt = attempts[0].observedAt;
+      }
+      if (turn.completedAt == null) {
+        if (!turn.observedFromStart && !turn.activeTools?.size && turn.decodeStartedAt == null && sums.output >= previousOutput) {
+          turn.lastEventAt = Math.max(turn.startedAt, latest.observedAt);
+        } else if (latest.observedAt > (turn.lastEventAt || 0)) {
+          turn.lastEventAt = latest.observedAt;
+        }
+      }
     }
     codexPlusUsageRememberTurn(turn);
   }
@@ -2164,7 +2222,7 @@
     codexPlusUsageState.historyLoading = true;
     codexPlusUsageState.historyError = "";
     codexPlusUsageRender(codexPlusUsageTurnSnapshot(codexPlusUsageState.turns.get(threadId), Date.now()));
-    codexPlusUsageState.historyPromise = (async () => {
+    const task = (async () => {
       try {
         const result = await window.codexPlus.call("/thread-usage-history", { session_id: threadId });
         if (codexPlusUsageState.disposed || codexPlusUsageState.threadId !== threadId) return;
@@ -2180,13 +2238,16 @@
         }
       } finally {
         if (!codexPlusUsageState.disposed) {
-          codexPlusUsageState.historyLoading = false;
-          codexPlusUsageState.historyPromise = null;
+          if (codexPlusUsageState.historyPromise === task) {
+            codexPlusUsageState.historyLoading = false;
+            codexPlusUsageState.historyPromise = null;
+          }
           codexPlusUsageRender(codexPlusUsageTurnSnapshot(codexPlusUsageState.turns.get(codexPlusUsageState.threadId), Date.now()));
         }
       }
     })();
-    return codexPlusUsageState.historyPromise;
+    codexPlusUsageState.historyPromise = task;
+    return task;
   }
 
   function codexPlusUsageScheduleHistoryRetry(threadId) {
@@ -2275,6 +2336,9 @@
       codexPlusUsageScheduleHistoryRetry(threadId);
     }
     if (codexPlusUsageState.threadId === threadId) {
+      if (method === "turn/completed" && codexPlusUsageState.magpieUsageFailureCount === 0) {
+        void codexPlusUsageRefreshGlobalUsage(true);
+      }
       codexPlusUsageRender(codexPlusUsageTurnSnapshot(turn, Date.now()));
       codexPlusUsageSchedule(codexPlusUsageActiveTickMs);
     }
@@ -2382,8 +2446,28 @@
     hitRate.append(codexPlusUsageFilledIcon(codexPlusUsageHitIconPath, "0 0 1024 1024", 14, 13), hitRateValue);
     hitRate.title = codexPlusUsageText().labels.hitRate;
     speed.appendChild(hitRate);
+    const consumption = document.createElement("span");
+    consumption.className = "codex-plus-usage-consumption";
+    const consumptionValue = document.createElement("span");
+    consumptionValue.textContent = "--";
+    consumption.append(
+      codexPlusUsageStrokeIcon(codexPlusUsageConsumptionIconPath, "0 0 24 24", 14, 13),
+      consumptionValue,
+    );
+    consumption.title = codexPlusUsageText().labels.task;
+    speed.appendChild(consumption);
     node.appendChild(speed);
-    const parts = { speed: { item: speed, value, hitRate, hitRateValue, needle: meter.needle } };
+    const parts = {
+      speed: {
+        item: speed,
+        value,
+        hitRate,
+        hitRateValue,
+        consumption,
+        consumptionValue,
+        needle: meter.needle,
+      },
+    };
     codexPlusUsageState.parts = parts;
     const show = () => codexPlusUsageShowPopover();
     const hide = () => codexPlusUsageHidePopoverSoon();
@@ -2638,6 +2722,15 @@
       return `${Number((value / 1_000_000).toFixed(1))}M`;
     }
     return `${Number((value / 1_000).toFixed(1))}K`;
+  }
+
+  function codexPlusUsageFormatCompactTokens(value) {
+    if (!Number.isFinite(value) || value < 0) return codexPlusUsageText().unavailable;
+    const tokens = Math.round(value);
+    if (tokens < 1000) return String(tokens);
+    if (tokens >= 999_950_000) return `${Number((tokens / 1_000_000_000).toFixed(1))}B`;
+    if (tokens >= 999_950) return `${Number((tokens / 1_000_000).toFixed(1))}M`;
+    return `${Number((tokens / 1_000).toFixed(1))}K`;
   }
 
   function codexPlusUsageFormatContext(percent, window) {
@@ -3121,6 +3214,7 @@
     const speed = snapshot?.speed == null ? "--" : codexPlusUsageFormatSpeed(snapshot.speed);
     const consumption = codexPlusUsageSelectedConsumption(snapshot);
     const hitRate = codexPlusUsageFormatPercent(consumption.usage?.hitRate);
+    const consumptionText = codexPlusUsageFormatCompactTokens(consumption.value);
     const context = codexPlusUsageContextSnapshot(
       codexPlusUsageState.turns.get(codexPlusUsageState.threadId),
       codexPlusUsageState.liveContextByThread.get(codexPlusUsageState.threadId),
@@ -3130,10 +3224,12 @@
       codexPlusUsageState.lastFingerprint = fingerprint;
       parts.speed.value.textContent = text.speed(speed);
       parts.speed.hitRateValue.textContent = hitRate;
+      parts.speed.consumptionValue.textContent = consumptionText;
+      parts.speed.consumption.title = consumption.label;
       const needleRatio = codexPlusUsageClamp((snapshot?.speed || 0) / codexPlusUsageSpeedPeak, 0, 1);
       parts.speed.needle.style.transform = `rotate(${-75 + needleRatio * 150}deg)`;
       node.dataset.state = snapshot?.completed ? "completed" : "running";
-      node.setAttribute("aria-label", `${text.aria}：${text.speed(speed)}，${text.labels.hitRate} ${hitRate}`);
+      node.setAttribute("aria-label", `${text.aria}：${text.speed(speed)}，${text.labels.hitRate} ${hitRate}，${consumption.label} ${consumptionText}`);
       codexPlusUsageUpdatePopover(snapshot);
     }
     if (!codexPlusUsageState.popover?.hidden) codexPlusUsagePositionPopover();
@@ -3227,6 +3323,9 @@
     const turn = placement ? codexPlusUsageState.turns.get(placement.threadId) : null;
     codexPlusUsageRender(codexPlusUsageTurnSnapshot(turn, Date.now()));
     if (placement) {
+      if (placement.threadChanged && !codexPlusUsageState.turns.has(placement.threadId)) {
+        void codexPlusUsageLoadHistory();
+      }
       void codexPlusUsageRefreshLiveContext(placement.threadId, placement.threadChanged).then((updated) => {
         if (!updated || codexPlusUsageState.disposed || codexPlusUsageState.threadId !== placement.threadId) return;
         codexPlusUsageRender(codexPlusUsageTurnSnapshot(
@@ -3235,11 +3334,21 @@
         ));
       });
     }
-    const liveUsageRange = !codexPlusUsageState.popover?.hidden;
-    if (placement && liveUsageRange) void codexPlusUsageRefreshGlobalUsage();
-    codexPlusUsageSchedule(liveUsageRange
+    const popoverOpen = !codexPlusUsageState.popover?.hidden;
+    const now = Date.now();
+    const activeTurn = !!turn && turn.completedAt == null
+      && ((turn.activeTools?.size || 0) > 0
+        || (Number.isFinite(turn.lastEventAt) && now - turn.lastEventAt <= codexPlusUsageStaleTickMs));
+    const magpieInterval = popoverOpen || activeTurn ? codexPlusUsageMagpieRefreshMs : 10_000;
+    const magpieReady = now >= (codexPlusUsageState.magpieUsageLastAttemptAt || 0)
+      + codexPlusUsageMagpieRetryDelayMs(codexPlusUsageState.magpieUsageFailureCount);
+    const shouldForceMagpie = !!(placement?.threadChanged && codexPlusUsageState.magpieUsageFailureCount === 0);
+    if (placement && !document.hidden && (popoverOpen || shouldForceMagpie || (magpieReady && now - (codexPlusUsageState.magpieUsage?.fetchedAt || 0) >= magpieInterval))) {
+      void codexPlusUsageRefreshGlobalUsage(shouldForceMagpie);
+    }
+    codexPlusUsageSchedule(popoverOpen
       ? codexPlusUsageMagpieRefreshMs
-      : turn && turn.completedAt == null && !document.hidden
+      : activeTurn && !document.hidden
         ? codexPlusUsageActiveTickMs
         : codexPlusUsageIdleTickMs);
   }

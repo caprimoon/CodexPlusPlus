@@ -968,43 +968,41 @@ describe("renderer injection header compatibility", () => {
     assert.match(renderer, /document\.querySelectorAll\(`#\$\{codexPlusMenuId\}/);
   });
 
-  it("mounts Codex++ and 拓展 entries into the new navigation rail", async () => {
+  it("removes built-in rail icons while preserving extension nav entries and top Codex++ Settings group", async () => {
     const renderer = await readFile(new URL("../../../assets/inject/renderer-inject.js", import.meta.url), "utf8");
 
-    assert.match(renderer, /codexPlusRailNavId\s*=\s*"codex-plus-rail-nav"/);
-    assert.match(renderer, /codexPlusRailExtensionsId\s*=\s*"codex-plus-rail-extensions"/);
     assert.match(renderer, /codexPlusRailSelector\s*=\s*"nav\[data-app-navigation-rail\]"/);
     assert.match(renderer, /function installCodexPlusRailNavigation\(\)/);
-    // 模板按钮取自原生 destination，clone 后必须清掉这几个属性，
-    // 否则会被 Codex 的自定义/排序逻辑当成真 destination。
+    assert.match(renderer, /function removeCodexPlusBuiltinRailNavigation\(\)/);
+    assert.match(renderer, /removeCodexPlusBuiltinRailNavigation\(\);/);
+    // 拓展通过 ctx.registerNavEntry 注册的左侧图标栏入口（如动态壁纸）仍由 createCodexPlusRailButton 构建并挂载。
     assert.match(renderer, /codexPlusRailDestinationSelector\s*=\s*"\[data-sidebar-destination\]"/);
     assert.match(renderer, /button\.removeAttribute\("data-sidebar-destination"\)/);
     assert.match(renderer, /button\.removeAttribute\("aria-current"\)/);
-    // 图标栏是纯图标，不塞文字标签。
     assert.match(renderer, /class="codex-plus-rail-icon"/);
-    assert.doesNotMatch(renderer, /codex-plus-rail-icon"[^]*?<span class="truncate">/);
+    // 设置页顶部新增 Codex++ 分组，挂入「内置拓展」与「外部拓展」两项。
+    assert.match(renderer, /codexPlusSettingsSectionId\s*=\s*"codex-plus-settings-section"/);
+    assert.match(renderer, /function installCodexPlusSettingsNavigation\(\)/);
+    assert.match(renderer, /label:\s*"内置拓展"/);
+    assert.match(renderer, /label:\s*"外部拓展"/);
   });
 
-  it("falls back to the legacy sidebar entry when the rail is absent", async () => {
+  it("wires rail, legacy sidebar fallback and Codex Settings nav entries consistently", async () => {
     const renderer = await readFile(new URL("../../../assets/inject/renderer-inject.js", import.meta.url), "utf8");
 
     assert.match(renderer, /function installCodexPlusNavigationEntries\(\)/);
-    // 两条路径互斥：有 rail 就移除旧入口，没有就移除 rail 入口。
-    // rail 分支同时补画拓展入口：冷启动时内置入口常由启动补扫装上，它只调这个函数，
-    // 拓展入口若不在这里补，页面空闲时会一直缺失（实测复现过）。
-    assert.match(renderer, /if \(installCodexPlusRailNavigation\(\)\) \{\s*detachCodexPlusSidebarNavigation\(\);[\s\S]{0,300}?refreshCodexPlusRailNavigation\(\);\s*return;\s*\}/);
+    assert.match(renderer, /if \(installCodexPlusRailNavigation\(\)\) \{\s*detachCodexPlusSidebarNavigation\(\);[\s\S]{0,300}?refreshCodexPlusRailNavigation\(\);[\s\S]{0,200}?installCodexPlusSettingsNavigation\(\);/);
     assert.match(renderer, /removeCodexPlusRailNavigation\(\);\s*installCodexPlusSidebarNavigation\(\);/);
     assert.match(renderer, /function detachCodexPlusSidebarNavigation\(\)/);
-    // 启动补扫要认两条路径任意一条已装上。
-    assert.match(renderer, /const installed = document\.getElementById\(codexPlusSidebarNavId\)\s*\|\| document\.getElementById\(codexPlusRailNavId\);/);
+    assert.match(renderer, /const installed = rail\s*\?\s*!pendingExtensionRail\s*:\s*!!document\.getElementById\(codexPlusSidebarNavId\);/);
   });
 
   it("opens 拓展 as a standalone page instead of a Codex++ tab", async () => {
     const renderer = await readFile(new URL("../../../assets/inject/renderer-inject.js", import.meta.url), "utf8");
 
     assert.match(renderer, /codexPlusExtensionsTab\s*=\s*"extensions"/);
-    assert.match(renderer, /function openCodexPlusExtensions\(\)/);
-    assert.match(renderer, /openCodexPlusModal\(\{ page: true, tab: codexPlusExtensionsTab \}\)/);
+    assert.match(renderer, /function openCodexPlusExtensions\(options = \{\}\)/);
+    assert.match(renderer, /openCodexPlusModal\(\{ page: true, tab: codexPlusExtensionsTab, settingsEmbedded: options\?\.settingsEmbedded \}\)/);
     // 旧名 userScripts 仍要能映射过去，避免存量调用点失效。
     assert.match(renderer, /if \(tab === "extensions" \|\| tab === "userScripts"\) return codexPlusExtensionsTab;/);
     // 弹窗必须尊重传入的初始 tab，而不是硬编码 home。
@@ -1026,7 +1024,7 @@ describe("renderer injection header compatibility", () => {
     // 否则 renderUserScripts / 各 toggle 的 querySelector 会找不到目标。
     assert.match(renderer, /main\.appendChild\(body\)/);
     // 左面板只有「拓展」需要（它是脚本列表）；主页是单栏内容页，
-    // 页面切换交给图标栏入口，所以导航容器要在条件分支里创建。
+    // 页面切换交给导航入口，所以导航容器要在条件分支里创建。
     assert.match(renderer, /if \(tab === codexPlusExtensionsTab\) \{[\s\S]{0,400}nav\.className = "codex-plus-page-nav"/);
     assert.match(renderer, /data-codex-plus-page-nav-body="true"/);
     // 布局必须在 selectCodexPlusTab 之前建好，否则刷新左面板时找不到容器。
@@ -1036,7 +1034,7 @@ describe("renderer injection header compatibility", () => {
     assert.match(renderer, /selectCodexPlusTab\(pageNav\.getAttribute\("data-codex-plus-page-nav"\)\)/);
   });
 
-  it("已剥离左侧推荐内容入口，保留两个 rail 入口并跟随 Codex 的界面缩放", async () => {
+  it("已剥离推荐内容入口，设置内嵌仅覆盖右侧内容区并跟随 Codex 的界面缩放", async () => {
     const renderer = await readFile(new URL("../../../assets/inject/renderer-inject.js", import.meta.url), "utf8");
 
     // 「推荐内容」图标栏入口、tab 与广告面板已剥离。
@@ -1045,8 +1043,9 @@ describe("renderer injection header compatibility", () => {
     // 弹窗里的 tab 条已随入口外移删除，不该再有残留。
     assert.doesNotMatch(renderer, /codex-plus-tab-button/);
 
-    // 「拓展」入口用 VSCode 的扩展字形，和列表默认图标同一份 path。
-    assert.match(renderer, /extensions: `<svg viewBox="0 0 16 16" fill="currentColor"><path d="\$\{codexPlusDefaultExtensionIconPath\}"/);
+    // 外部拓展图标用 VSCode 的扩展字形，和列表默认图标同一份 path。
+    assert.match(renderer, /codexPlusDefaultExtensionIconPath/);
+    assert.match(renderer, /settingsEmbedded[\s\S]{0,400}paneRect\.left/);
 
     // 界面缩放：读 Codex 的 zoom 变量，套到 overlay 上，尺寸用 calc 反向抵消。
     assert.match(renderer, /const codexPlusWindowZoomVar = "--codex-window-zoom"/);

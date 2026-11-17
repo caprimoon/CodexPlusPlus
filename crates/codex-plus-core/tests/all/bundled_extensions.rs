@@ -2,11 +2,12 @@
 use codex_plus_core::bundled_extensions::{
     AGENT_PET_DIR, AGENT_PET_KEY, IMAGE_OVERLAY_DIR, IMAGE_OVERLAY_KEY, LIVE_WALLPAPER_ID,
     LIVE_WALLPAPER_KEY, PROXY_REQUEST_STATUS_DIR, PROXY_REQUEST_STATUS_KEY, RETIRED_BUNDLED_DIRS,
-    RETIRED_BUNDLED_KEYS, TOKENLENS_KEY, TOKENLENS_MARKET_ID, TYPING_EFFECTS_DIR,
+    RETIRED_BUNDLED_KEYS, TOKEN_PULSE_ID, TOKEN_PULSE_KEY, TYPING_EFFECTS_DIR,
     TYPING_EFFECTS_KEY, USAGE_STATUSLINE_DIR, USAGE_STATUSLINE_KEY, materialize, packages,
     seed_default_extensions,
 };
-use codex_plus_core::extension_discovery::{CHANNEL_COMMUNITY, CommunityStore};
+use codex_plus_core::extension_discovery::{CHANNEL_COMMUNITY, CommunityStore, InstallRecord};
+use codex_plus_core::script_market::MarketScript;
 use codex_plus_core::user_scripts::UserScriptManager;
 use serde_json::{Value, json};
 
@@ -75,7 +76,7 @@ fn retired_official_bundled_packages_are_not_materialized_and_remnants_are_purge
 }
 
 #[test]
-fn seed_default_extensions_installs_live_wallpaper_disabled_and_tokenlens_enabled_once() {
+fn seed_default_extensions_installs_live_canvas_disabled_and_token_pulse_enabled_once() {
     let temp = tempfile::tempdir().unwrap();
     let mgr = manager(temp.path());
 
@@ -84,30 +85,31 @@ fn seed_default_extensions_installs_live_wallpaper_disabled_and_tokenlens_enable
     let wallpaper = script(&mgr, LIVE_WALLPAPER_KEY);
     assert_eq!(wallpaper["error"], "", "{wallpaper}");
     assert_eq!(wallpaper["kind"], "package");
-    assert_eq!(wallpaper["enabled"], false, "动态壁纸默认安装且停用");
+    assert_eq!(wallpaper["enabled"], false, "LiveCanvas 动态壁纸默认安装且停用");
     assert_eq!(wallpaper["package"]["id"], LIVE_WALLPAPER_ID);
+    assert_eq!(wallpaper["package"]["version"], "1.0.0");
 
     let community = CommunityStore::new(temp.path()).load_state();
-    let record = community.installs.get(LIVE_WALLPAPER_ID).unwrap();
-    assert_eq!(record.repo, "luojinghao/codex-live-wallpaper");
-    assert_eq!(record.version, "1.2.0");
-    assert_eq!(record.channel, CHANNEL_COMMUNITY);
+    let wallpaper_record = community.installs.get(LIVE_WALLPAPER_ID).unwrap();
+    assert_eq!(wallpaper_record.repo, "caprimoon/codexpp-live-canvas");
+    assert_eq!(wallpaper_record.version, "1.0.0");
+    assert_eq!(wallpaper_record.channel, CHANNEL_COMMUNITY);
 
-    let tokenlens = script(&mgr, TOKENLENS_KEY);
-    assert_eq!(tokenlens["error"], "", "{tokenlens}");
-    assert_eq!(tokenlens["kind"], "script");
-    assert_eq!(tokenlens["enabled"], true, "TokenLens for Codex 默认安装且启用");
-    let config = mgr.load_config();
-    let market_record = config.market.get(TOKENLENS_KEY).unwrap();
-    assert_eq!(market_record.id, TOKENLENS_MARKET_ID);
-    assert_eq!(
-        market_record.homepage,
-        "https://github.com/LingYingNX/TokenLens-for-Codex"
-    );
+    let token_pulse = script(&mgr, TOKEN_PULSE_KEY);
+    assert_eq!(token_pulse["error"], "", "{token_pulse}");
+    assert_eq!(token_pulse["kind"], "package");
+    assert_eq!(token_pulse["enabled"], true, "TokenPulse 默认安装且启用");
+    assert_eq!(token_pulse["package"]["id"], TOKEN_PULSE_ID);
+    assert_eq!(token_pulse["package"]["version"], "1.0.5");
+
+    let token_pulse_record = community.installs.get(TOKEN_PULSE_ID).unwrap();
+    assert_eq!(token_pulse_record.repo, "caprimoon/codexpp-token-pulse");
+    assert_eq!(token_pulse_record.version, "1.0.5");
+    assert_eq!(token_pulse_record.channel, CHANNEL_COMMUNITY);
 
     // 用户后续停用/删除其中之一后，再次启动不能强行恢复。
     mgr.set_script_enabled(LIVE_WALLPAPER_KEY, true).unwrap();
-    mgr.delete_user_script(TOKENLENS_KEY).unwrap();
+    mgr.delete_user_script(TOKEN_PULSE_KEY).unwrap();
     assert!(!seed_default_extensions(temp.path(), &mgr).unwrap());
     assert_eq!(script(&mgr, LIVE_WALLPAPER_KEY)["enabled"], true);
     assert!(
@@ -115,7 +117,94 @@ fn seed_default_extensions_installs_live_wallpaper_disabled_and_tokenlens_enable
             .as_array()
             .unwrap()
             .iter()
-            .all(|item| item["key"] != TOKENLENS_KEY),
+            .all(|item| item["key"] != TOKEN_PULSE_KEY),
         "用户卸载后不应重新写回"
     );
+}
+
+#[test]
+fn seed_default_extensions_migrates_legacy_v1_defaults_to_caprimoon_packages() {
+    let temp = tempfile::tempdir().unwrap();
+    let mgr = manager(temp.path());
+    std::fs::create_dir_all(mgr.user_dir().join(LIVE_WALLPAPER_ID)).unwrap();
+    std::fs::write(
+        mgr.user_dir().join(LIVE_WALLPAPER_ID).join("codexpp.json"),
+        json!({ "id": LIVE_WALLPAPER_ID, "version": "1.2.0", "renderer": ["renderer.js"] })
+            .to_string(),
+    )
+    .unwrap();
+    std::fs::write(mgr.user_dir().join(LIVE_WALLPAPER_ID).join("renderer.js"), "// legacy").unwrap();
+    mgr.set_script_enabled(LIVE_WALLPAPER_KEY, true).unwrap();
+    CommunityStore::new(temp.path())
+        .seed_install_record(
+            LIVE_WALLPAPER_ID,
+            InstallRecord {
+                repo: "luojinghao/codex-live-wallpaper".to_string(),
+                version: "1.2.0".to_string(),
+                tag: Some("v1.2.0".to_string()),
+                sha: "legacy-sha".to_string(),
+                from_default_branch: false,
+                from_asset: false,
+                installed_at: 1,
+                channel: CHANNEL_COMMUNITY.to_string(),
+            },
+        )
+        .unwrap();
+
+    let legacy_tokenlens = mgr.user_script_path_for_market_id("tokenlens-for-codex");
+    std::fs::write(&legacy_tokenlens, "// legacy tokenlens").unwrap();
+    mgr.seed_default_market_script(
+        &MarketScript {
+            id: "tokenlens-for-codex".to_string(),
+            name: "TokenLens for Codex".to_string(),
+            description: String::new(),
+            version: "1.0.5".to_string(),
+            author: "LingYingNX".to_string(),
+            tags: Vec::new(),
+            homepage: "https://github.com/LingYingNX/TokenLens-for-Codex".to_string(),
+            script_url: String::new(),
+            requirements: Vec::new(),
+            limitations: Vec::new(),
+            icon: String::new(),
+            updated_at: String::new(),
+        },
+        true,
+    )
+    .unwrap();
+    std::fs::write(temp.path().join(".custom_default_extensions_v1"), b"v1\n").unwrap();
+
+    assert!(seed_default_extensions(temp.path(), &mgr).unwrap());
+
+    assert!(!legacy_tokenlens.exists(), "旧版 market-tokenlens-for-codex.js 应被移除");
+    assert!(!temp.path().join(".custom_default_extensions_v1").exists());
+    assert!(temp.path().join(".custom_default_extensions_v2").exists());
+
+    let wallpaper = script(&mgr, LIVE_WALLPAPER_KEY);
+    assert_eq!(wallpaper["error"], "", "{wallpaper}");
+    assert_eq!(wallpaper["enabled"], true, "升级应保留用户原有的动态壁纸开关状态");
+    assert_eq!(
+        CommunityStore::new(temp.path())
+            .load_state()
+            .installs
+            .get(LIVE_WALLPAPER_ID)
+            .unwrap()
+            .repo,
+        "caprimoon/codexpp-live-canvas"
+    );
+
+    let token_pulse = script(&mgr, TOKEN_PULSE_KEY);
+    assert_eq!(token_pulse["error"], "", "{token_pulse}");
+    assert_eq!(token_pulse["enabled"], true);
+    assert_eq!(
+        CommunityStore::new(temp.path())
+            .load_state()
+            .installs
+            .get(TOKEN_PULSE_ID)
+            .unwrap()
+            .repo,
+        "caprimoon/codexpp-token-pulse"
+    );
+    let config = mgr.load_config();
+    assert!(!config.scripts.contains_key("user:market-tokenlens-for-codex.js"));
+    assert!(!config.market.contains_key("user:market-tokenlens-for-codex.js"));
 }

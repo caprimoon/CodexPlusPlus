@@ -151,6 +151,7 @@
     window.__codexPlusPageLayoutObserver = null;
     window.__codexPlusPageLayoutTargets = null;
     document.querySelectorAll(`.${codexPlusPageClass}`).forEach((node) => node.remove());
+    if (typeof unmountCodexPlusSettingsPanel === "function") unmountCodexPlusSettingsPanel();
     setCodexPlusSidebarNavActive(false);
     restoreCodexPlusPageBackButton();
   }
@@ -195,7 +196,7 @@
     entries.forEach((entry) => {
       const elementId = codexPlusExtensionRailElementId(entry);
       let wrapper = document.getElementById(elementId);
-      if (!wrapper || wrapper.parentElement !== host) {
+      if (!wrapper || wrapper.parentElement !== host || !codexPlusNavEntryReusable(wrapper)) {
         wrapper?.remove();
         wrapper = createCodexPlusRailButton({
           id: elementId,

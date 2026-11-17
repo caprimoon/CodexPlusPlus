@@ -1,0 +1,30 @@
+{
+  "id": "token-pulse",
+  "name": "TokenPulse · 吞吐与消耗监控",
+  "version": "1.0.5",
+  "author": "caprimoon",
+  "license": "MIT",
+  "repository": "https://github.com/caprimoon/codexpp-token-pulse",
+  "homepage": "https://github.com/caprimoon/codexpp-token-pulse",
+  "description": "在 Codex++ 输入栏下方实时显示吞吐速度（tok/s）、缓存命中率与累计消耗量，悬停可查看工具耗时、上下文占用、单次调用柱状图、TOP 3 消耗及多时段统计。",
+  "icon": "assets/icon.svg",
+  "keywords": [
+    "codex",
+    "token",
+    "throughput",
+    "usage",
+    "statusline"
+  ],
+  "engines": {
+    "codexpp": 1
+  },
+  "renderer": [
+    "tokenlens.js"
+  ],
+  "permissions": {
+    "routes": [
+      "/thread-usage-history",
+      "/thread-usage-live"
+    ]
+  }
+}

@@ -562,6 +562,38 @@ impl UserScriptManager {
         Ok(changed)
     }
 
+    /// 迁移旧版默认单文件脚本：删除磁盘上的单文件并清理其在 user_scripts.json 中的记录，返回迁移前的启用状态。
+    pub fn retire_user_script(&self, key: &str) -> anyhow::Result<Option<bool>> {
+        let Some(file_name) = key.strip_prefix("user:").filter(|value| !value.is_empty()) else {
+            anyhow::bail!("only user scripts can be retired");
+        };
+        if file_name.contains(['/', '\\']) || file_name == "." || file_name == ".." {
+            anyhow::bail!("invalid user script key");
+        }
+        let path = self.user_dir.join(file_name);
+        if path.is_file() {
+            fs::remove_file(&path)
+                .with_context(|| format!("无法清理旧版默认脚本 {}", path.display()))?;
+        }
+        let _guard = self.config_lock.lock().unwrap();
+        let mut config = self.load_config_unlocked();
+        let previous = config.scripts.remove(key);
+        let mut changed = previous.is_some();
+        if config.claude_scripts.remove(key).is_some() {
+            changed = true;
+        }
+        if config.configs.remove(key).is_some() {
+            changed = true;
+        }
+        if config.market.remove(key).is_some() {
+            changed = true;
+        }
+        if changed {
+            self.save_config_unlocked(&config)?;
+        }
+        Ok(previous)
+    }
+
     /// 启用中、清单无误的拓展包声明的 Codex 钩子，附带拓展 id。全局关闭时为空。
     pub fn enabled_extension_hooks(&self) -> anyhow::Result<Vec<(String, ExtensionHook)>> {
         let config = self.load_config();

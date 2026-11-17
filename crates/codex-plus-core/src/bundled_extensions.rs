@@ -164,17 +164,42 @@ pub const RETIRED_BUNDLED_KEYS: &[&str] = &[
     PROXY_REQUEST_STATUS_KEY,
 ];
 
-const DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v1";
+const LEGACY_DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v1";
+const DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v2";
+const LEGACY_WALLPAPER_REPO: &str = "luojinghao/codex-live-wallpaper";
+const LEGACY_TOKENLENS_KEY: &str = "user:market-tokenlens-for-codex.js";
+
 pub const LIVE_WALLPAPER_ID: &str = "live-wallpaper-studio";
 pub const LIVE_WALLPAPER_KEY: &str = "user:live-wallpaper-studio";
-const LIVE_WALLPAPER_MANIFEST: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/codexpp.json");
-const LIVE_WALLPAPER_RENDERER: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/renderer.js");
-const LIVE_WALLPAPER_BACKEND: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/backend/main.mjs");
-const LIVE_WALLPAPER_README: &str = include_str!("../../../assets/default-extensions/live-wallpaper-studio/README.md");
+const LIVE_WALLPAPER_FILES: &[(&str, &[u8])] = &[
+    ("codexpp.json", include_bytes!("../../../assets/default-extensions/live-wallpaper-studio/codexpp.json")),
+    ("renderer.js", include_bytes!("../../../assets/default-extensions/live-wallpaper-studio/renderer.js")),
+    ("backend/main.mjs", include_bytes!("../../../assets/default-extensions/live-wallpaper-studio/backend/main.mjs")),
+    ("assets/icon.svg", include_bytes!("../../../assets/default-extensions/live-wallpaper-studio/assets/icon.svg")),
+    ("README.md", include_bytes!("../../../assets/default-extensions/live-wallpaper-studio/README.md")),
+];
 
-pub const TOKENLENS_MARKET_ID: &str = "tokenlens-for-codex";
-pub const TOKENLENS_KEY: &str = "user:market-tokenlens-for-codex.js";
-const TOKENLENS_SCRIPT: &str = include_str!("../../../assets/default-extensions/tokenlens-for-codex/tokenlens.js");
+pub const TOKEN_PULSE_ID: &str = "token-pulse";
+pub const TOKEN_PULSE_KEY: &str = "user:token-pulse";
+const TOKEN_PULSE_FILES: &[(&str, &[u8])] = &[
+    ("codexpp.json", include_bytes!("../../../assets/default-extensions/token-pulse/codexpp.json")),
+    ("tokenlens.js", include_bytes!("../../../assets/default-extensions/token-pulse/tokenlens.js")),
+    ("assets/icon.svg", include_bytes!("../../../assets/default-extensions/token-pulse/assets/icon.svg")),
+    ("README.md", include_bytes!("../../../assets/default-extensions/token-pulse/README.md")),
+];
+
+fn write_extension_package_files(package_dir: &Path, files: &[(&str, &[u8])]) -> anyhow::Result<()> {
+    for (relative, content) in files {
+        let target = package_dir.join(relative);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("无法创建 {}", parent.display()))?;
+        }
+        crate::settings::atomic_write(&target, content)
+            .with_context(|| format!("无法写入 {}", target.display()))?;
+    }
+    Ok(())
+}
 
 /// 已移除随客户端强制释放的官方默认拓展包，返回空列表。
 pub fn packages() -> Vec<(&'static str, Vec<(&'static str, Vec<u8>)>)> {
@@ -193,8 +218,11 @@ pub fn materialize(directory: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 首次初始化或升级后只执行一次：默认安装「动态壁纸」（禁用）并默认安装且启用「TokenLens for Codex」。
-/// 若后续用户在管理器里手动卸载或修改启停，因存在标记文件不会再次覆盖。
+/// 首次初始化或版本迁移时只执行一次：
+/// - 默认安装「LiveCanvas · 动态壁纸与毛玻璃」（禁用，来自 `caprimoon/codexpp-live-canvas`）
+/// - 默认安装并启用「TokenPulse · 吞吐与消耗监控」（来自 `caprimoon/codexpp-token-pulse`）
+/// 并自动从旧版预装拓展迁移（升级 `luojinghao/codex-live-wallpaper`、移除 `market-tokenlens-for-codex.js`）。
+/// 标记写入后，用户在管理器里的手动卸载或启停变更不会被再次覆盖。
 pub fn seed_default_extensions(
     config_dir: &Path,
     manager: &crate::user_scripts::UserScriptManager,
@@ -206,35 +234,32 @@ pub fn seed_default_extensions(
         return Ok(false);
     }
 
-    let wallpaper_dir = manager.user_dir().join(LIVE_WALLPAPER_ID);
-    if !wallpaper_dir.join("codexpp.json").exists() {
-        for (relative, content) in [
-            ("codexpp.json", LIVE_WALLPAPER_MANIFEST.as_bytes()),
-            ("renderer.js", LIVE_WALLPAPER_RENDERER.as_bytes()),
-            ("backend/main.mjs", LIVE_WALLPAPER_BACKEND.as_bytes()),
-            ("README.md", LIVE_WALLPAPER_README.as_bytes()),
-        ] {
-            let target = wallpaper_dir.join(relative);
-            if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("无法创建 {}", parent.display()))?;
-            }
-            crate::settings::atomic_write(&target, content)
-                .with_context(|| format!("无法写入 {}", target.display()))?;
-        }
-    }
-    manager.seed_default_script(LIVE_WALLPAPER_KEY, false)?;
+    let community_store = crate::extension_discovery::CommunityStore::new(config_dir);
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
-    crate::extension_discovery::CommunityStore::new(config_dir).seed_install_record(
+
+    let wallpaper_dir = manager.user_dir().join(LIVE_WALLPAPER_ID);
+    let existing_wallpaper_repo = community_store
+        .load_state()
+        .installs
+        .get(LIVE_WALLPAPER_ID)
+        .map(|record| record.repo.clone());
+    if !wallpaper_dir.join("codexpp.json").exists()
+        || existing_wallpaper_repo.as_deref() == Some(LEGACY_WALLPAPER_REPO)
+    {
+        write_extension_package_files(&wallpaper_dir, LIVE_WALLPAPER_FILES)?;
+    }
+    manager.seed_default_script(LIVE_WALLPAPER_KEY, false)?;
+    community_store.seed_or_upgrade_install_record(
         LIVE_WALLPAPER_ID,
+        &[LEGACY_WALLPAPER_REPO],
         crate::extension_discovery::InstallRecord {
-            repo: "luojinghao/codex-live-wallpaper".to_string(),
-            version: "1.2.0".to_string(),
-            tag: Some("v1.2.0".to_string()),
-            sha: "b04329ee5a1c7576cbe60c601fe0bdd674fa4947".to_string(),
+            repo: "caprimoon/codexpp-live-canvas".to_string(),
+            version: "1.0.0".to_string(),
+            tag: Some("v1.0.0".to_string()),
+            sha: "ee0eed0567dc88c68f93c7e5b2dcb55555248020".to_string(),
             from_default_branch: false,
             from_asset: false,
             installed_at: now_secs,
@@ -242,43 +267,32 @@ pub fn seed_default_extensions(
         },
     )?;
 
-    let tokenlens_path = manager.user_script_path_for_market_id(TOKENLENS_MARKET_ID);
-    if !tokenlens_path.exists() {
-        if let Some(parent) = tokenlens_path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("无法创建 {}", parent.display()))?;
-        }
-        crate::settings::atomic_write(&tokenlens_path, TOKENLENS_SCRIPT.as_bytes())
-            .with_context(|| format!("无法写入 {}", tokenlens_path.display()))?;
+    let legacy_tokenlens_enabled = manager.retire_user_script(LEGACY_TOKENLENS_KEY)?;
+    let token_pulse_dir = manager.user_dir().join(TOKEN_PULSE_ID);
+    if !token_pulse_dir.join("codexpp.json").exists() {
+        write_extension_package_files(&token_pulse_dir, TOKEN_PULSE_FILES)?;
     }
-    manager.seed_default_market_script(
-        &crate::script_market::MarketScript {
-            id: TOKENLENS_MARKET_ID.to_string(),
-            name: "TokenLens for Codex".to_string(),
-            description: "在 Codex++ 底栏显示实时 tok/s、平均速度、上下文、Token、缓存、调用图表与 TOP 排行，并提供工具分类和多时间范围用量统计。".to_string(),
+    manager.seed_default_script(TOKEN_PULSE_KEY, legacy_tokenlens_enabled.unwrap_or(true))?;
+    community_store.seed_install_record(
+        TOKEN_PULSE_ID,
+        crate::extension_discovery::InstallRecord {
+            repo: "caprimoon/codexpp-token-pulse".to_string(),
             version: "1.0.5".to_string(),
-            author: "LingYingNX".to_string(),
-            tags: vec![
-                "codex".to_string(),
-                "tokens".to_string(),
-                "throughput".to_string(),
-                "usage".to_string(),
-                "cache".to_string(),
-                "tools".to_string(),
-                "ui".to_string(),
-            ],
-            homepage: "https://github.com/LingYingNX/TokenLens-for-Codex".to_string(),
-            script_url: "https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlusScriptMarket/main/scripts/tokenlens-for-codex.js".to_string(),
-            requirements: Vec::new(),
-            limitations: Vec::new(),
-            icon: String::new(),
-            updated_at: String::new(),
+            tag: Some("v1.0.5".to_string()),
+            sha: "8560d110753f851b15a3cda1fe219a8b000b9640".to_string(),
+            from_default_branch: false,
+            from_asset: false,
+            installed_at: now_secs,
+            channel: crate::extension_discovery::CHANNEL_COMMUNITY.to_string(),
         },
-        true,
     )?;
 
-    crate::settings::atomic_write(&marker, b"v1\n")
+    crate::settings::atomic_write(&marker, b"v2\n")
         .with_context(|| format!("无法写入 {}", marker.display()))?;
+    let legacy_marker = config_dir.join(LEGACY_DEFAULT_EXTENSIONS_MARKER);
+    if legacy_marker.exists() {
+        let _ = std::fs::remove_file(&legacy_marker);
+    }
     Ok(true)
 }
 

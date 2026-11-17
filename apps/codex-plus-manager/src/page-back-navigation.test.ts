@@ -224,3 +224,23 @@ test("both actual close implementations cancel timers before reopening", () => {
     assert.equal(h.button.getAttribute("disabled"), null);
   }
 });
+
+test("clicking a native settings item or Back in settingsEmbedded mode closes the overlay cleanly", () => {
+  const h = harness(false);
+  h.install();
+  const nativeSetting = new Element();
+  nativeSetting.closest = (selector: string) => selector === "[data-settings-panel-slug]" ? nativeSetting : null;
+  const nativeEvent = h.click(nativeSetting);
+  assert.equal(h.counts().closes, 1);
+  assert.equal(nativeEvent.prevented, false);
+
+  const h2 = harness(false);
+  h2.context.document.querySelector = () => ({ getAttribute: (name: string) => name === "data-codex-plus-settings-embedded" ? "true" : null });
+  h2.install();
+  const backIcon = new Element();
+  backIcon.button = h2.button;
+  const backEvent = h2.click(backIcon);
+  assert.equal(h2.counts().closes, 1);
+  assert.equal(backEvent.prevented, false, "settingsEmbedded mode lets native Back exit Settings");
+  assert.equal(backEvent.stopped, false);
+});

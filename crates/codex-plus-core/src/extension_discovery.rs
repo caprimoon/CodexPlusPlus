@@ -563,8 +563,22 @@ impl CommunityStore {
 
     /// 首次预装社区拓展包时补齐安装来源记录（若用户已安装或已有记录则保留原样）。
     pub fn seed_install_record(&self, id: &str, record: InstallRecord) -> anyhow::Result<()> {
+        self.seed_or_upgrade_install_record(id, &[], record)
+    }
+
+    /// 首次预装或从指定旧仓库升级时补齐安装来源记录（其余已有记录保留原样）。
+    pub fn seed_or_upgrade_install_record(
+        &self,
+        id: &str,
+        replace_if_repos: &[&str],
+        record: InstallRecord,
+    ) -> anyhow::Result<()> {
         let mut state = self.load_state();
-        if state.installs.contains_key(id) {
+        let should_write = match state.installs.get(id) {
+            None => true,
+            Some(existing) => replace_if_repos.contains(&existing.repo.as_str()),
+        };
+        if !should_write {
             return Ok(());
         }
         state.installs.insert(id.to_string(), record);
