@@ -164,10 +164,17 @@ pub const RETIRED_BUNDLED_KEYS: &[&str] = &[
     PROXY_REQUEST_STATUS_KEY,
 ];
 
-const LEGACY_DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v1";
-const DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v2";
+const LEGACY_V1_DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v1";
+const LEGACY_V2_DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v2";
+const DEFAULT_EXTENSIONS_MARKER: &str = ".custom_default_extensions_v3";
 const LEGACY_WALLPAPER_REPO: &str = "luojinghao/codex-live-wallpaper";
+const LIVE_WALLPAPER_REPO: &str = "caprimoon/codexpp-live-canvas";
+const LEGACY_LIVE_WALLPAPER_SHAS: &[&str] = &["ee0eed0567dc88c68f93c7e5b2dcb55555248020"];
+const LIVE_WALLPAPER_SHA: &str = "527f9d3c1d34ec39d85c2174cf6294a1818208f7";
 const LEGACY_TOKENLENS_KEY: &str = "user:market-tokenlens-for-codex.js";
+const TOKEN_PULSE_REPO: &str = "caprimoon/codexpp-token-pulse";
+const LEGACY_TOKEN_PULSE_SHAS: &[&str] = &["8560d110753f851b15a3cda1fe219a8b000b9640"];
+const TOKEN_PULSE_SHA: &str = "50cac6babd058352f85b83fb42e614e8d21a3e5c";
 
 pub const LIVE_WALLPAPER_ID: &str = "live-wallpaper-studio";
 pub const LIVE_WALLPAPER_KEY: &str = "user:live-wallpaper-studio";
@@ -218,10 +225,67 @@ pub fn materialize(directory: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+struct DefaultPackageSpec<'a> {
+    id: &'a str,
+    script_key: &'a str,
+    repo: &'a str,
+    version: &'a str,
+    sha: &'a str,
+    legacy_repos: &'a [&'a str],
+    legacy_shas: &'a [&'a str],
+    files: &'a [(&'a str, &'a [u8])],
+    default_enabled: bool,
+}
+
+fn sync_default_package(
+    manager: &crate::user_scripts::UserScriptManager,
+    community_store: &crate::extension_discovery::CommunityStore,
+    state: &crate::extension_discovery::CommunityState,
+    already_seeded_v2: bool,
+    now_secs: u64,
+    spec: &DefaultPackageSpec<'_>,
+) -> anyhow::Result<()> {
+    let package_dir = manager.user_dir().join(spec.id);
+    let manifest_exists = package_dir.join("codexpp.json").exists();
+    let existing = state.installs.get(spec.id);
+    let should_upgrade = manifest_exists
+        && existing.is_some_and(|record| {
+            spec.legacy_repos.contains(&record.repo.as_str())
+                || (record.repo == spec.repo
+                    && spec
+                        .legacy_shas
+                        .iter()
+                        .any(|sha| record.sha.eq_ignore_ascii_case(sha)))
+        });
+    if (!already_seeded_v2 && !manifest_exists) || should_upgrade {
+        write_extension_package_files(&package_dir, spec.files)?;
+    }
+    if !already_seeded_v2 || should_upgrade {
+        manager.seed_default_script(spec.script_key, spec.default_enabled)?;
+        community_store.seed_or_upgrade_install_record_shas(
+            spec.id,
+            spec.legacy_repos,
+            spec.legacy_shas,
+            crate::extension_discovery::InstallRecord {
+                repo: spec.repo.to_string(),
+                version: spec.version.to_string(),
+                tag: None,
+                sha: spec.sha.to_string(),
+                from_default_branch: true,
+                from_asset: false,
+                installed_at: now_secs,
+                channel: crate::extension_discovery::CHANNEL_COMMUNITY.to_string(),
+            },
+        )?;
+    }
+    Ok(())
+}
+
 /// 首次初始化或版本迁移时只执行一次：
 /// - 默认安装「LiveCanvas · 动态壁纸与毛玻璃」（禁用，来自 `caprimoon/codexpp-live-canvas`）
 /// - 默认安装并启用「TokenPulse · 吞吐与消耗监控」（来自 `caprimoon/codexpp-token-pulse`）
-/// 并自动从旧版预装拓展迁移（升级 `luojinghao/codex-live-wallpaper`、移除 `market-tokenlens-for-codex.js`）。
+/// 并自动从旧版预装拓展迁移（升级 `luojinghao/codex-live-wallpaper` 与旧提交的 `LiveCanvas`/`TokenPulse`，
+/// 移除 `market-tokenlens-for-codex.js`）。
 /// 标记写入后，用户在管理器里的手动卸载或启停变更不会被再次覆盖。
 pub fn seed_default_extensions(
     config_dir: &Path,
@@ -234,64 +298,52 @@ pub fn seed_default_extensions(
         return Ok(false);
     }
 
+    let legacy_v1_marker = config_dir.join(LEGACY_V1_DEFAULT_EXTENSIONS_MARKER);
+    let legacy_v2_marker = config_dir.join(LEGACY_V2_DEFAULT_EXTENSIONS_MARKER);
+    let already_seeded_v2 = legacy_v2_marker.exists();
+
     let community_store = crate::extension_discovery::CommunityStore::new(config_dir);
+    let state = community_store.load_state();
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
 
-    let wallpaper_dir = manager.user_dir().join(LIVE_WALLPAPER_ID);
-    let existing_wallpaper_repo = community_store
-        .load_state()
-        .installs
-        .get(LIVE_WALLPAPER_ID)
-        .map(|record| record.repo.clone());
-    if !wallpaper_dir.join("codexpp.json").exists()
-        || existing_wallpaper_repo.as_deref() == Some(LEGACY_WALLPAPER_REPO)
-    {
-        write_extension_package_files(&wallpaper_dir, LIVE_WALLPAPER_FILES)?;
-    }
-    manager.seed_default_script(LIVE_WALLPAPER_KEY, false)?;
-    community_store.seed_or_upgrade_install_record(
-        LIVE_WALLPAPER_ID,
-        &[LEGACY_WALLPAPER_REPO],
-        crate::extension_discovery::InstallRecord {
-            repo: "caprimoon/codexpp-live-canvas".to_string(),
-            version: "1.0.0".to_string(),
-            tag: Some("v1.0.0".to_string()),
-            sha: "ee0eed0567dc88c68f93c7e5b2dcb55555248020".to_string(),
-            from_default_branch: false,
-            from_asset: false,
-            installed_at: now_secs,
-            channel: crate::extension_discovery::CHANNEL_COMMUNITY.to_string(),
-        },
-    )?;
-
     let legacy_tokenlens_enabled = manager.retire_user_script(LEGACY_TOKENLENS_KEY)?;
-    let token_pulse_dir = manager.user_dir().join(TOKEN_PULSE_ID);
-    if !token_pulse_dir.join("codexpp.json").exists() {
-        write_extension_package_files(&token_pulse_dir, TOKEN_PULSE_FILES)?;
-    }
-    manager.seed_default_script(TOKEN_PULSE_KEY, legacy_tokenlens_enabled.unwrap_or(true))?;
-    community_store.seed_install_record(
-        TOKEN_PULSE_ID,
-        crate::extension_discovery::InstallRecord {
-            repo: "caprimoon/codexpp-token-pulse".to_string(),
-            version: "1.0.5".to_string(),
-            tag: Some("v1.0.5".to_string()),
-            sha: "8560d110753f851b15a3cda1fe219a8b000b9640".to_string(),
-            from_default_branch: false,
-            from_asset: false,
-            installed_at: now_secs,
-            channel: crate::extension_discovery::CHANNEL_COMMUNITY.to_string(),
+    let specs = [
+        DefaultPackageSpec {
+            id: LIVE_WALLPAPER_ID,
+            script_key: LIVE_WALLPAPER_KEY,
+            repo: LIVE_WALLPAPER_REPO,
+            version: "1.0.0",
+            sha: LIVE_WALLPAPER_SHA,
+            legacy_repos: &[LEGACY_WALLPAPER_REPO],
+            legacy_shas: LEGACY_LIVE_WALLPAPER_SHAS,
+            files: LIVE_WALLPAPER_FILES,
+            default_enabled: false,
         },
-    )?;
+        DefaultPackageSpec {
+            id: TOKEN_PULSE_ID,
+            script_key: TOKEN_PULSE_KEY,
+            repo: TOKEN_PULSE_REPO,
+            version: "1.0.5",
+            sha: TOKEN_PULSE_SHA,
+            legacy_repos: &[],
+            legacy_shas: LEGACY_TOKEN_PULSE_SHAS,
+            files: TOKEN_PULSE_FILES,
+            default_enabled: legacy_tokenlens_enabled.unwrap_or(true),
+        },
+    ];
+    for spec in &specs {
+        sync_default_package(manager, &community_store, &state, already_seeded_v2, now_secs, spec)?;
+    }
 
-    crate::settings::atomic_write(&marker, b"v2\n")
+    crate::settings::atomic_write(&marker, b"v3\n")
         .with_context(|| format!("无法写入 {}", marker.display()))?;
-    let legacy_marker = config_dir.join(LEGACY_DEFAULT_EXTENSIONS_MARKER);
-    if legacy_marker.exists() {
-        let _ = std::fs::remove_file(&legacy_marker);
+    for legacy_marker in [legacy_v1_marker, legacy_v2_marker] {
+        if legacy_marker.exists() {
+            let _ = std::fs::remove_file(&legacy_marker);
+        }
     }
     Ok(true)
 }

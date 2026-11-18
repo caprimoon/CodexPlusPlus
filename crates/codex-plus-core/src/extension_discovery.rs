@@ -573,10 +573,27 @@ impl CommunityStore {
         replace_if_repos: &[&str],
         record: InstallRecord,
     ) -> anyhow::Result<()> {
+        self.seed_or_upgrade_install_record_shas(id, replace_if_repos, &[], record)
+    }
+
+    /// 首次预装或从指定旧仓库 / 旧提交升级时补齐安装来源记录（其余已有记录保留原样）。
+    pub fn seed_or_upgrade_install_record_shas(
+        &self,
+        id: &str,
+        replace_if_repos: &[&str],
+        replace_if_shas: &[&str],
+        record: InstallRecord,
+    ) -> anyhow::Result<()> {
         let mut state = self.load_state();
         let should_write = match state.installs.get(id) {
             None => true,
-            Some(existing) => replace_if_repos.contains(&existing.repo.as_str()),
+            Some(existing) => {
+                replace_if_repos.contains(&existing.repo.as_str())
+                    || (existing.repo == record.repo
+                        && replace_if_shas
+                            .iter()
+                            .any(|sha| existing.sha.eq_ignore_ascii_case(sha)))
+            }
         };
         if !should_write {
             return Ok(());

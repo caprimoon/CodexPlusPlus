@@ -93,6 +93,12 @@ fn seed_default_extensions_installs_live_canvas_disabled_and_token_pulse_enabled
     let wallpaper_record = community.installs.get(LIVE_WALLPAPER_ID).unwrap();
     assert_eq!(wallpaper_record.repo, "caprimoon/codexpp-live-canvas");
     assert_eq!(wallpaper_record.version, "1.0.0");
+    assert_eq!(wallpaper_record.tag, None);
+    assert_eq!(
+        wallpaper_record.sha,
+        "527f9d3c1d34ec39d85c2174cf6294a1818208f7"
+    );
+    assert!(wallpaper_record.from_default_branch);
     assert_eq!(wallpaper_record.channel, CHANNEL_COMMUNITY);
 
     let token_pulse = script(&mgr, TOKEN_PULSE_KEY);
@@ -105,6 +111,12 @@ fn seed_default_extensions_installs_live_canvas_disabled_and_token_pulse_enabled
     let token_pulse_record = community.installs.get(TOKEN_PULSE_ID).unwrap();
     assert_eq!(token_pulse_record.repo, "caprimoon/codexpp-token-pulse");
     assert_eq!(token_pulse_record.version, "1.0.5");
+    assert_eq!(token_pulse_record.tag, None);
+    assert_eq!(
+        token_pulse_record.sha,
+        "50cac6babd058352f85b83fb42e614e8d21a3e5c"
+    );
+    assert!(token_pulse_record.from_default_branch);
     assert_eq!(token_pulse_record.channel, CHANNEL_COMMUNITY);
 
     // 用户后续停用/删除其中之一后，再次启动不能强行恢复。
@@ -177,7 +189,7 @@ fn seed_default_extensions_migrates_legacy_v1_defaults_to_caprimoon_packages() {
 
     assert!(!legacy_tokenlens.exists(), "旧版 market-tokenlens-for-codex.js 应被移除");
     assert!(!temp.path().join(".custom_default_extensions_v1").exists());
-    assert!(temp.path().join(".custom_default_extensions_v2").exists());
+    assert!(temp.path().join(".custom_default_extensions_v3").exists());
 
     let wallpaper = script(&mgr, LIVE_WALLPAPER_KEY);
     assert_eq!(wallpaper["error"], "", "{wallpaper}");
@@ -207,4 +219,115 @@ fn seed_default_extensions_migrates_legacy_v1_defaults_to_caprimoon_packages() {
     let config = mgr.load_config();
     assert!(!config.scripts.contains_key("user:market-tokenlens-for-codex.js"));
     assert!(!config.market.contains_key("user:market-tokenlens-for-codex.js"));
+}
+
+#[test]
+fn seed_default_extensions_upgrades_v2_packages_and_respects_uninstalls() {
+    let temp = tempfile::tempdir().unwrap();
+    let mgr = manager(temp.path());
+
+    // LiveCanvas 处于 v2 旧提交并由用户开启；TokenPulse 已被用户卸载。
+    let wallpaper_dir = mgr.user_dir().join(LIVE_WALLPAPER_ID);
+    std::fs::create_dir_all(&wallpaper_dir).unwrap();
+    std::fs::write(
+        wallpaper_dir.join("codexpp.json"),
+        json!({ "id": LIVE_WALLPAPER_ID, "version": "1.0.0", "renderer": ["renderer.js"] })
+            .to_string(),
+    )
+    .unwrap();
+    std::fs::write(wallpaper_dir.join("renderer.js"), "// old v1.0.0 renderer").unwrap();
+    mgr.set_script_enabled(LIVE_WALLPAPER_KEY, true).unwrap();
+
+    let store = CommunityStore::new(temp.path());
+    store
+        .seed_install_record(
+            LIVE_WALLPAPER_ID,
+            InstallRecord {
+                repo: "caprimoon/codexpp-live-canvas".to_string(),
+                version: "1.0.0".to_string(),
+                tag: Some("v1.0.0".to_string()),
+                sha: "ee0eed0567dc88c68f93c7e5b2dcb55555248020".to_string(),
+                from_default_branch: false,
+                from_asset: false,
+                installed_at: 1,
+                channel: CHANNEL_COMMUNITY.to_string(),
+            },
+        )
+        .unwrap();
+    store
+        .seed_install_record(
+            TOKEN_PULSE_ID,
+            InstallRecord {
+                repo: "caprimoon/codexpp-token-pulse".to_string(),
+                version: "1.0.5".to_string(),
+                tag: Some("v1.0.5".to_string()),
+                sha: "8560d110753f851b15a3cda1fe219a8b000b9640".to_string(),
+                from_default_branch: false,
+                from_asset: false,
+                installed_at: 1,
+                channel: CHANNEL_COMMUNITY.to_string(),
+            },
+        )
+        .unwrap();
+    std::fs::write(temp.path().join(".custom_default_extensions_v2"), b"v2\n").unwrap();
+
+    assert!(seed_default_extensions(temp.path(), &mgr).unwrap());
+    assert!(!temp.path().join(".custom_default_extensions_v2").exists());
+    assert!(temp.path().join(".custom_default_extensions_v3").exists());
+
+    // LiveCanvas 更新为性能优化提交并保留原有启用状态。
+    let upgraded_renderer = std::fs::read_to_string(wallpaper_dir.join("renderer.js")).unwrap();
+    assert!(upgraded_renderer.contains("pauseOnTask"));
+    assert_eq!(script(&mgr, LIVE_WALLPAPER_KEY)["enabled"], true);
+    let updated_record = store.load_state().installs.get(LIVE_WALLPAPER_ID).unwrap().clone();
+    assert_eq!(updated_record.sha, "527f9d3c1d34ec39d85c2174cf6294a1818208f7");
+    assert_eq!(updated_record.tag, None);
+    assert!(updated_record.from_default_branch);
+
+    // 用户已卸载的 TokenPulse 不应被重新装回。
+    assert!(!mgr.user_dir().join(TOKEN_PULSE_ID).join("codexpp.json").exists());
+
+    // 另一套同时保留旧版 TokenPulse（用户改为停用）的环境也会在迁移时升级并保持停用状态。
+    let both = tempfile::tempdir().unwrap();
+    let both_mgr = manager(both.path());
+    let token_pulse_dir = both_mgr.user_dir().join(TOKEN_PULSE_ID);
+    std::fs::create_dir_all(&token_pulse_dir).unwrap();
+    std::fs::write(
+        token_pulse_dir.join("codexpp.json"),
+        json!({ "id": TOKEN_PULSE_ID, "version": "1.0.5", "renderer": ["tokenlens.js"] })
+            .to_string(),
+    )
+    .unwrap();
+    std::fs::write(token_pulse_dir.join("tokenlens.js"), "// old v1.0.5 tokenlens").unwrap();
+    both_mgr.set_script_enabled(TOKEN_PULSE_KEY, false).unwrap();
+    CommunityStore::new(both.path())
+        .seed_install_record(
+            TOKEN_PULSE_ID,
+            InstallRecord {
+                repo: "caprimoon/codexpp-token-pulse".to_string(),
+                version: "1.0.5".to_string(),
+                tag: Some("v1.0.5".to_string()),
+                sha: "8560d110753f851b15a3cda1fe219a8b000b9640".to_string(),
+                from_default_branch: false,
+                from_asset: false,
+                installed_at: 1,
+                channel: CHANNEL_COMMUNITY.to_string(),
+            },
+        )
+        .unwrap();
+    std::fs::write(both.path().join(".custom_default_extensions_v2"), b"v2\n").unwrap();
+
+    assert!(seed_default_extensions(both.path(), &both_mgr).unwrap());
+    let upgraded_tokenlens = std::fs::read_to_string(token_pulse_dir.join("tokenlens.js")).unwrap();
+    assert!(upgraded_tokenlens.contains("lastAnalyticsFingerprint"));
+    assert_eq!(script(&both_mgr, TOKEN_PULSE_KEY)["enabled"], false);
+    let token_record = CommunityStore::new(both.path())
+        .load_state()
+        .installs
+        .get(TOKEN_PULSE_ID)
+        .unwrap()
+        .clone();
+    assert_eq!(token_record.sha, "50cac6babd058352f85b83fb42e614e8d21a3e5c");
+    assert_eq!(token_record.tag, None);
+    assert!(token_record.from_default_branch);
 }
